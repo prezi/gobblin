@@ -47,7 +47,7 @@ import com.google.common.io.Closer;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 
-import static gobblin.retry.RetryerFactory.*;
+import static gobblin.util.retry.RetryerFactory.*;
 import static gobblin.configuration.ConfigurationKeys.*;
 import static gobblin.source.extractor.extract.google.GoogleCommonKeys.*;
 import static gobblin.source.extractor.extract.google.GoogleAnalyticsUnsampledSource.*;
@@ -56,13 +56,13 @@ import gobblin.configuration.State;
 import gobblin.configuration.WorkUnitState;
 import gobblin.instrumented.Instrumented;
 import gobblin.metrics.GobblinMetrics;
-import gobblin.retry.RetryerFactory;
+import gobblin.util.retry.RetryerFactory;
 import gobblin.source.extractor.DataRecordException;
 import gobblin.source.extractor.Extractor;
 import gobblin.source.extractor.extract.LongWatermark;
 import gobblin.source.extractor.filebased.CsvFileDownloader;
 import gobblin.source.workunit.WorkUnit;
-import gobblin.writer.exception.NonTransientException;
+import gobblin.exception.NonTransientException;
 
 /**
  * Extracts Google Analytics(GA) unsampled report data.

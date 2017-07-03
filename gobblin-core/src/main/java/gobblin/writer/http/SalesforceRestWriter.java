@@ -48,7 +48,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import gobblin.converter.http.RestEntry;
-import gobblin.writer.exception.NonTransientException;
+import gobblin.exception.NonTransientException;
 
 /**
  * Writes to Salesforce via RESTful API, supporting INSERT_ONLY_NOT_EXIST, and UPSERT.

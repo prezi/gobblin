@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -39,11 +40,16 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.Closer;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigRenderOptions;
 
+import gobblin.config.ConfigBuilder;
 import gobblin.configuration.ConfigurationKeys;
 import gobblin.configuration.State;
 import gobblin.configuration.WorkUnitState;
@@ -53,6 +59,12 @@ import gobblin.util.HadoopUtils;
 import gobblin.util.ParallelRunner;
 import gobblin.util.WriterUtils;
 import gobblin.util.reflection.GobblinConstructorUtils;
+import gobblin.util.retry.RetryerFactory;
+
+import static gobblin.util.retry.RetryerFactory.RETRY_INTERVAL_MS;
+import static gobblin.util.retry.RetryerFactory.RETRY_MULTIPLIER;
+import static gobblin.util.retry.RetryerFactory.RETRY_TIME_OUT_MS;
+import static gobblin.util.retry.RetryerFactory.RETRY_TYPE;
 
 
 /**
@@ -91,6 +103,25 @@ public class BaseDataPublisher extends SingleTaskDataPublisher {
   protected final Map<String, ParallelRunner> parallelRunners = Maps.newHashMap();
   protected final Set<Path> publisherOutputDirs = Sets.newHashSet();
   protected final List<MetadataMerger<String>> metadataMergers;
+  protected final boolean shouldRetry;
+
+  static final String DATA_PUBLISHER_RETRY_PREFIX = ConfigurationKeys.DATA_PUBLISHER_PREFIX + ".retry.";
+  static final String PUBLISH_RETRY_ENABLED = DATA_PUBLISHER_RETRY_PREFIX + "enabled";
+
+  static final Config PUBLISH_RETRY_DEFAULTS;
+  protected final Config retrierConfig;
+
+  static {
+    Map<String, Object> configMap =
+        ImmutableMap.<String, Object>builder()
+            .put(RETRY_TIME_OUT_MS, TimeUnit.MINUTES.toMillis(2L))   //Overall retry for 2 minutes
+            .put(RETRY_INTERVAL_MS, TimeUnit.SECONDS.toMillis(5L)) //Try to retry 5 seconds
+            .put(RETRY_MULTIPLIER, 2L) // Muliply by 2 every attempt
+            .put(RETRY_TYPE, RetryerFactory.RetryType.EXPONENTIAL.name())
+            .build();
+    PUBLISH_RETRY_DEFAULTS = ConfigFactory.parseMap(configMap);
+  };
+
 
   public BaseDataPublisher(State state)
       throws IOException {
@@ -104,6 +135,7 @@ public class BaseDataPublisher extends SingleTaskDataPublisher {
     }
 
     this.numBranches = this.getState().getPropAsInt(ConfigurationKeys.FORK_BRANCHES_KEY, 1);
+    this.shouldRetry = this.getState().getPropAsBoolean(PUBLISH_RETRY_ENABLED, false);
 
     this.writerFileSystemByBranches = Lists.newArrayListWithCapacity(this.numBranches);
     this.publisherFileSystemByBranches = Lists.newArrayListWithCapacity(this.numBranches);
@@ -136,6 +168,19 @@ public class BaseDataPublisher extends SingleTaskDataPublisher {
           ForkOperatorUtils.getPropertyNameForBranch(ConfigurationKeys.DATA_PUBLISHER_PERMISSIONS, this.numBranches, i),
           FsPermission.getDefault().toShort(), ConfigurationKeys.PERMISSION_PARSING_RADIX)));
     }
+
+    if (shouldRetry) {
+      this.retrierConfig = ConfigBuilder.create()
+          .loadProps(this.getState().getProperties(), DATA_PUBLISHER_RETRY_PREFIX)
+          .build()
+          .withFallback(PUBLISH_RETRY_DEFAULTS);
+      LOG.info("Retry enabled for publish with config : "+ retrierConfig.root().render(ConfigRenderOptions.concise()));
+
+    }else {
+      LOG.info("Retry disabled for publish.");
+      this.retrierConfig = WriterUtils.NO_RETRY_CONFIG;
+    }
+
 
     this.parallelRunnerThreads =
         state.getPropAsInt(ParallelRunner.PARALLEL_RUNNER_THREADS_KEY, ParallelRunner.DEFAULT_PARALLEL_RUNNER_THREADS);
@@ -280,8 +325,8 @@ public class BaseDataPublisher extends SingleTaskDataPublisher {
 
     if (publishSingleTaskData) {
       // Create final output directory
-      WriterUtils.mkdirsWithRecursivePermission(this.publisherFileSystemByBranches.get(branchId), publisherOutputDir,
-          this.permissions.get(branchId));
+      WriterUtils.mkdirsWithRecursivePermissionWithRetry(this.publisherFileSystemByBranches.get(branchId), publisherOutputDir,
+          this.permissions.get(branchId), retrierConfig);
       addSingleTaskWriterOutputToExistingDir(writerOutputDir, publisherOutputDir, state, branchId, parallelRunner);
     } else {
       if (writerOutputPathsMoved.contains(writerOutputDir)) {
@@ -308,8 +353,8 @@ public class BaseDataPublisher extends SingleTaskDataPublisher {
         this.publisherFileSystemByBranches.get(branchId).delete(publisherOutputDir, true);
       } else {
         // Create the parent directory of the final output directory if it does not exist
-        WriterUtils.mkdirsWithRecursivePermission(this.publisherFileSystemByBranches.get(branchId),
-            publisherOutputDir.getParent(), this.permissions.get(branchId));
+        WriterUtils.mkdirsWithRecursivePermissionWithRetry(this.publisherFileSystemByBranches.get(branchId),
+            publisherOutputDir.getParent(), this.permissions.get(branchId), retrierConfig);
       }
 
       movePath(parallelRunner, state, writerOutputDir, publisherOutputDir, branchId);
@@ -354,8 +399,8 @@ public class BaseDataPublisher extends SingleTaskDataPublisher {
       String pathSuffix = taskOutputFile
           .substring(taskOutputFile.indexOf(writerOutputDir.toString()) + writerOutputDir.toString().length() + 1);
       Path publisherOutputPath = new Path(publisherOutputDir, pathSuffix);
-      WriterUtils.mkdirsWithRecursivePermission(this.publisherFileSystemByBranches.get(branchId),
-          publisherOutputPath.getParent(), this.permissions.get(branchId));
+      WriterUtils.mkdirsWithRecursivePermissionWithRetry(this.publisherFileSystemByBranches.get(branchId),
+          publisherOutputPath.getParent(), this.permissions.get(branchId), retrierConfig);
 
       movePath(parallelRunner, workUnitState, taskOutputPath, publisherOutputPath, branchId);
     }
@@ -506,7 +551,11 @@ public class BaseDataPublisher extends SingleTaskDataPublisher {
         FileSystem fs = this.metaDataWriterFileSystemByBranches.get(branchId);
 
         if (!fs.exists(metadataOutputPath.getParent())) {
-          WriterUtils.mkdirsWithRecursivePermission(fs, metadataOutputPath, this.permissions.get(branchId));
+          if (this.shouldRetry) {
+            WriterUtils.mkdirsWithRecursivePermission(fs, metadataOutputPath, this.permissions.get(branchId));
+          }else {
+            WriterUtils.mkdirsWithRecursivePermissionWithRetry(fs, metadataOutputPath, this.permissions.get(branchId), retrierConfig);
+          }
         }
 
         //Delete the file if metadata already exists

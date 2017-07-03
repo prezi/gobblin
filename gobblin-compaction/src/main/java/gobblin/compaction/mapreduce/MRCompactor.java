@@ -17,14 +17,8 @@
 
 package gobblin.compaction.mapreduce;
 
-import static gobblin.compaction.dataset.Dataset.DatasetState.COMPACTION_COMPLETE;
-import static gobblin.compaction.dataset.Dataset.DatasetState.GIVEN_UP;
-import static gobblin.compaction.dataset.Dataset.DatasetState.UNVERIFIED;
-import static gobblin.compaction.dataset.Dataset.DatasetState.VERIFIED;
-import static gobblin.compaction.mapreduce.MRCompactorJobRunner.Status.ABORTED;
-import static gobblin.compaction.mapreduce.MRCompactorJobRunner.Status.COMMITTED;
-
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -35,9 +29,7 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
-import java.lang.reflect.InvocationTargetException;
 
-import org.joda.time.DateTime;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
@@ -45,6 +37,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.Job;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,13 +57,13 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import gobblin.compaction.Compactor;
-import gobblin.compaction.listeners.CompactorCompletionListener;
-import gobblin.compaction.listeners.CompactorCompletionListenerFactory;
-import gobblin.compaction.listeners.CompactorListener;
 import gobblin.compaction.dataset.Dataset;
 import gobblin.compaction.dataset.DatasetsFinder;
 import gobblin.compaction.dataset.TimeBasedSubDirDatasetsFinder;
 import gobblin.compaction.event.CompactionSlaEventHelper;
+import gobblin.compaction.listeners.CompactorCompletionListener;
+import gobblin.compaction.listeners.CompactorCompletionListenerFactory;
+import gobblin.compaction.listeners.CompactorListener;
 import gobblin.compaction.verify.DataCompletenessVerifier;
 import gobblin.compaction.verify.DataCompletenessVerifier.Results;
 import gobblin.configuration.ConfigurationKeys;
@@ -79,14 +72,21 @@ import gobblin.metrics.GobblinMetrics;
 import gobblin.metrics.Tag;
 import gobblin.metrics.event.EventSubmitter;
 import gobblin.util.ClassAliasResolver;
+import gobblin.util.ClusterNameTags;
 import gobblin.util.DatasetFilterUtils;
 import gobblin.util.ExecutorsUtils;
-import gobblin.util.HadoopUtils;
-import gobblin.util.ClusterNameTags;
 import gobblin.util.FileListUtils;
+import gobblin.util.HadoopUtils;
 import gobblin.util.recordcount.CompactionRecordCountProvider;
 import gobblin.util.recordcount.IngestionRecordCountProvider;
 import gobblin.util.reflection.GobblinConstructorUtils;
+
+import static gobblin.compaction.dataset.Dataset.DatasetState.COMPACTION_COMPLETE;
+import static gobblin.compaction.dataset.Dataset.DatasetState.GIVEN_UP;
+import static gobblin.compaction.dataset.Dataset.DatasetState.UNVERIFIED;
+import static gobblin.compaction.dataset.Dataset.DatasetState.VERIFIED;
+import static gobblin.compaction.mapreduce.MRCompactorJobRunner.Status.ABORTED;
+import static gobblin.compaction.mapreduce.MRCompactorJobRunner.Status.COMMITTED;
 
 /**
  * MapReduce-based {@link gobblin.compaction.Compactor}. Compaction will run on each qualified {@link Dataset}
@@ -253,6 +253,8 @@ public class MRCompactor implements Compactor {
   public static final String COMPACTION_TRACKING_EVENTS_NAMESPACE = COMPACTION_PREFIX + "tracking.events";
 
   public static final String COMPACTION_INPUT_PATH_TIME = COMPACTION_PREFIX + "input.path.time";
+  public static final String COMPACTION_FILE_EXTENSION =
+      COMPACTION_PREFIX + "extension";
 
   private static final long COMPACTION_JOB_WAIT_INTERVAL_SECONDS = 10;
   private static final Map<Dataset, Job> RUNNING_MR_JOBS = Maps.newConcurrentMap();

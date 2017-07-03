@@ -41,7 +41,7 @@ import gobblin.instrumented.Instrumented;
 import gobblin.metrics.GobblinMetrics;
 import gobblin.source.extractor.RecordEnvelope;
 import gobblin.util.FinalState;
-import gobblin.writer.exception.NonTransientException;
+import gobblin.exception.NonTransientException;
 
 /**
  * Retry writer follows decorator pattern that retries on inner writer's failure.

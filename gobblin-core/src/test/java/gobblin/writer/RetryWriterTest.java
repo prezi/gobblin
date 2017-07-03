@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import gobblin.configuration.State;
 import gobblin.source.extractor.RecordEnvelope;
-import gobblin.writer.exception.NonTransientException;
+import gobblin.exception.NonTransientException;
 import gobblin.util.FinalState;
 
 import org.junit.Assert;
