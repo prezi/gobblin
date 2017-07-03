@@ -52,7 +52,6 @@ dependencies {
   compile externalDependency.scala
   compile externalDependency.lombok
   compile externalDependency.typesafeConfig
-  compile externalDependency.guavaretrying
   compile externalDependency.findBugsAnnotations
   compile externalDependency.oltu
   compile externalDependency.opencsv

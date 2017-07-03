@@ -20,7 +20,6 @@ package gobblin.source.extractor.extract.google;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import static org.mockito.Mockito.*;
 import org.apache.commons.lang.mutable.MutableInt;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -34,11 +33,16 @@ import com.google.api.services.analytics.Analytics.Management.UnsampledReports.G
 import com.google.api.services.analytics.model.UnsampledReport;
 import com.google.api.services.analytics.model.UnsampledReport.DriveDownloadDetails;
 
-import static gobblin.retry.RetryerFactory.*;
-import static gobblin.source.extractor.extract.google.GoogleAnalyticsUnsampledExtractor.*;
 import gobblin.configuration.WorkUnitState;
+import gobblin.exception.NonTransientException;
 import gobblin.source.extractor.Extractor;
-import gobblin.writer.exception.NonTransientException;
+
+import static gobblin.source.extractor.extract.google.GoogleAnalyticsUnsampledExtractor.DOWNLOAD_TYPE_GOOGLE_DRIVE;
+import static gobblin.source.extractor.extract.google.GoogleAnalyticsUnsampledExtractor.POLL_RETRY_PREFIX;
+import static gobblin.source.extractor.extract.google.GoogleAnalyticsUnsampledExtractor.ReportCreationStatus;
+import static gobblin.util.retry.RetryerFactory.RETRY_INTERVAL_MS;
+import static gobblin.util.retry.RetryerFactory.RETRY_TIME_OUT_MS;
+import static org.mockito.Mockito.*;
 
 @Test(groups = { "gobblin.source.extractor.google" })
 public class GoogleAnalyticsUnsampledExtractorTest {
