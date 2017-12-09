@@ -17,16 +17,11 @@
 
 package org.apache.gobblin.hive.metastore;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.hadoop.fs.Path;
@@ -42,12 +37,17 @@ import org.joda.time.DateTime;
 import com.codahale.metrics.Timer;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
 import com.google.common.primitives.Ints;
+
+import lombok.extern.slf4j.Slf4j;
 
 import org.apache.gobblin.annotation.Alpha;
 import org.apache.gobblin.configuration.State;
-import org.apache.gobblin.hive.HiveMetaStoreClientFactory;
 import org.apache.gobblin.hive.HiveLock;
+import org.apache.gobblin.hive.HiveMetaStoreClientFactory;
 import org.apache.gobblin.hive.HiveMetastoreClientPool;
 import org.apache.gobblin.hive.HivePartition;
 import org.apache.gobblin.hive.HiveRegProps;
@@ -237,8 +237,12 @@ public class HiveMetaStoreBasedRegister extends HiveRegister {
         throw new IOException(te);
       }
 
-      Preconditions.checkState(this.hiveDbRootDir.isPresent(),
-          "Missing required property " + HiveRegProps.HIVE_DB_ROOT_DIR);
+      try {
+        Preconditions.checkState(this.hiveDbRootDir.isPresent(), "Missing required property " + HiveRegProps.HIVE_DB_ROOT_DIR);
+      } catch (IllegalStateException e) {
+        throw new IOException("Precondition check failed ", e);
+      }
+
       db.setLocationUri(new Path(this.hiveDbRootDir.get(), hiveDbName + HIVE_DB_EXTENSION).toString());
 
       try {
@@ -273,7 +277,7 @@ public class HiveMetaStoreBasedRegister extends HiveRegister {
           }
         });
       } catch (ExecutionException ee) {
-        throw new IOException("Database existence checking throwing execution exception.");
+        throw new IOException("Database existence checking throwing execution exception.",ee);
       }
       return retVal;
     } else {
