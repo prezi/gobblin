@@ -191,8 +191,7 @@ public class AvroGeoipEnricherConverterTest {
     Assert.assertEquals("United Kingdom", AvroUtils.getFieldValue(outputRecord, "country").get().toString());
     Assert.assertEquals("GB", AvroUtils.getFieldValue(outputRecord, "country_code").get().toString());
     Assert.assertFalse(AvroUtils.getFieldValue(outputRecord, "ip_address").isPresent());
-
-  }
+    }
 }
 
 

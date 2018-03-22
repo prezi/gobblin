@@ -136,20 +136,22 @@ public class AvroGeoipEnricherConverter extends Converter<Schema, Schema, Generi
         }
       }
 
-      Field parentFieldNew = new Field(parentField.name(), enrichSchemaWithGeoipData(parentField.schema().getFields()), parentField.doc(), parentField.defaultVal());
+      Schema enrichedSchema = enrichSchemaWithGeoipData(parentField.schema(), parentField.schema().getFields());
+
+      Field parentFieldNew = new Field(parentField.name(), enrichedSchema, parentField.doc(), parentField.defaultVal());
       fields.add(parentFieldNew);
       outputSchema = Schema
           .createRecord(inputSchema.getName(), inputSchema.getDoc(), inputSchema.getNamespace(), inputSchema.isError());
       outputSchema.setFields(fields);
 
     } else {
-      outputSchema = enrichSchemaWithGeoipData(inputSchema.getFields());
+      outputSchema =  enrichSchemaWithGeoipData(inputSchema, inputSchema.getFields());
     }
 
     return outputSchema;
   }
 
-  private Schema enrichSchemaWithGeoipData(List<Field> inputFields) {
+  private Schema enrichSchemaWithGeoipData(Schema inputSchema, List<Field> inputFields) {
     List<Field> fields = new ArrayList<>();
     String ipFieldName = this.ipField.substring(this.ipField.lastIndexOf('.')+1, this.ipField.length());
 
@@ -164,7 +166,11 @@ public class AvroGeoipEnricherConverter extends Converter<Schema, Schema, Generi
     fields.add(new Field(COUNTRY_FIELD_NAME, Schema.createUnion(Schema.create(Schema.Type.NULL),Schema.create(Schema.Type.STRING)), "Country", Schema.Type.NULL, Field.Order.ASCENDING));
     fields.add(new Field(SUBDIVISION_FIELD_NAME, Schema.createUnion(Schema.create(Schema.Type.NULL),Schema.create(Schema.Type.STRING)), "Subdivision Name", Schema.Type.NULL, Field.Order.ASCENDING));
 
-    return Schema.createRecord(fields);
+    Schema enrichedSchema = Schema
+        .createRecord(inputSchema.getName(), inputSchema.getDoc(), inputSchema.getNamespace(), inputSchema.isError());
+    enrichedSchema.setFields(fields);
+
+    return enrichedSchema;
 
   }
 
@@ -177,9 +183,9 @@ public class AvroGeoipEnricherConverter extends Converter<Schema, Schema, Generi
 
       InetAddress inetAddress = InetAddress.getByName(ipAddress);
       CityResponse response = reader.city(inetAddress);
-      record.put(CITY_FIELD_NAME, new Utf8(response.getCity().getName()));
-      record.put(COUNTRY_FIELD_NAME, new Utf8(response.getCountry().getName()));
-      record.put(COUNTRY_CODE_NAME, new Utf8(response.getCountry().getIsoCode()));
+      record.put(CITY_FIELD_NAME,response.getCity() == null ? null: response.getCity().getName());
+      record.put(COUNTRY_FIELD_NAME,response.getCountry() == null ? null: response.getCountry().getName());
+      record.put(COUNTRY_CODE_NAME, response.getCountry() == null ? null: response.getCountry().getIsoCode());
       if (response.getSubdivisions().size() > 0) {
         record.put(SUBDIVISION_FIELD_NAME, new Utf8(response.getSubdivisions().get(0).getIsoCode()));
       }
@@ -194,9 +200,12 @@ public class AvroGeoipEnricherConverter extends Converter<Schema, Schema, Generi
     };
   }
 
-  public GenericRecord copyRecords (GenericRecord record, Schema outputSchema, Iterator<String> levels)
+  private GenericRecord copyRecords (GenericRecord record, Schema outputSchema, Iterator<String> levels)
   {
-    String level = levels.next();    GenericRecord outputRecord = new GenericData.Record(outputSchema);
+    String level = levels.next();
+
+    GenericRecord outputRecord = new GenericData.Record(outputSchema);
+
     if (!levels.hasNext()) {
       enrichWithGeoip(AvroUtils.getFieldValue(record, level).get().toString(), outputRecord);
     }
