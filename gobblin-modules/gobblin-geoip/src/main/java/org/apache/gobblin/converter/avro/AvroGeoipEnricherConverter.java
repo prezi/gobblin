@@ -161,10 +161,11 @@ public class AvroGeoipEnricherConverter extends Converter<Schema, Schema, Generi
       }
     }
 
-    fields.add(new Field(CITY_FIELD_NAME, Schema.createUnion(Schema.create(Schema.Type.NULL),Schema.create(Schema.Type.STRING)), "City", Schema.Type.NULL, Field.Order.ASCENDING));
-    fields.add(new Field(COUNTRY_CODE_NAME, Schema.createUnion(Schema.create(Schema.Type.NULL),Schema.create(Schema.Type.STRING)), "Country Code", Schema.Type.NULL, Field.Order.ASCENDING));
-    fields.add(new Field(COUNTRY_FIELD_NAME, Schema.createUnion(Schema.create(Schema.Type.NULL),Schema.create(Schema.Type.STRING)), "Country", Schema.Type.NULL, Field.Order.ASCENDING));
-    fields.add(new Field(SUBDIVISION_FIELD_NAME, Schema.createUnion(Schema.create(Schema.Type.NULL),Schema.create(Schema.Type.STRING)), "Subdivision Name", Schema.Type.NULL, Field.Order.ASCENDING));
+    fields.add(new Field(CITY_FIELD_NAME, Schema.createUnion(Schema.create(Schema.Type.NULL),Schema.create(Schema.Type.STRING)), "City",
+        Schema.NULL_VALUE, Field.Order.ASCENDING));
+    fields.add(new Field(COUNTRY_CODE_NAME, Schema.createUnion(Schema.create(Schema.Type.NULL),Schema.create(Schema.Type.STRING)), "Country Code", Schema.NULL_VALUE, Field.Order.ASCENDING));
+    fields.add(new Field(COUNTRY_FIELD_NAME, Schema.createUnion(Schema.create(Schema.Type.NULL),Schema.create(Schema.Type.STRING)), "Country", Schema.NULL_VALUE, Field.Order.ASCENDING));
+    fields.add(new Field(SUBDIVISION_FIELD_NAME, Schema.createUnion(Schema.create(Schema.Type.NULL),Schema.create(Schema.Type.STRING)), "Subdivision Name", Schema.NULL_VALUE, Field.Order.ASCENDING));
 
     Schema enrichedSchema = Schema
         .createRecord(inputSchema.getName(), inputSchema.getDoc(), inputSchema.getNamespace(), inputSchema.isError());
