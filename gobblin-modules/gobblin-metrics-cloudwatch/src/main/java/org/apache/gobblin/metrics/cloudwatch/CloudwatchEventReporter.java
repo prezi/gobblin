@@ -18,32 +18,21 @@
 package org.apache.gobblin.metrics.cloudwatch;
 
 import java.io.IOException;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.amazonaws.services.cloudwatch.model.Dimension;
 import com.google.common.base.Optional;
 
-import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.metrics.GobblinTrackingEvent;
 import org.apache.gobblin.metrics.MetricContext;
 import org.apache.gobblin.metrics.event.EventSubmitter;
-import org.apache.gobblin.metrics.event.GobblinEventBuilder;
-import org.apache.gobblin.metrics.event.JobEvent;
-import org.apache.gobblin.metrics.event.MultiPartEvent;
-import org.apache.gobblin.metrics.event.TaskEvent;
 import org.apache.gobblin.metrics.reporter.EventReporter;
-
-import static org.apache.gobblin.metrics.event.JobEvent.METADATA_JOB_ID;
-import static org.apache.gobblin.metrics.event.JobEvent.METADATA_JOB_STATE;
-import static org.apache.gobblin.metrics.event.TaskEvent.METADATA_TASK_ID;
-import static org.apache.gobblin.metrics.event.TimingEvent.METADATA_DURATION;
+import org.apache.gobblin.metrics.reporter.util.AvroJsonSerializer;
+import org.apache.gobblin.metrics.reporter.util.AvroSerializer;
+import org.apache.gobblin.metrics.reporter.util.NoopSchemaVersionWriter;
+import org.apache.gobblin.metrics.reporter.util.SchemaVersionWriter;
 
 
 /**
@@ -57,11 +46,15 @@ import static org.apache.gobblin.metrics.event.TimingEvent.METADATA_DURATION;
 public class CloudwatchEventReporter extends EventReporter {
 
   private final CloudwatchPusher cloudwatchPusher;
-  private final boolean emitValueAsKey;
 
   private static final Double EMTPY_VALUE = 0D;
   private static final Logger LOGGER = LoggerFactory.getLogger(CloudwatchEventReporter.class);
+  private final AvroSerializer<GobblinTrackingEvent> serializer;
   private String prefix;
+
+  public static final String DB_NAME = "DBName";
+  public static final String TABLE_NAME = "TableName";
+  public static final String PARTITIONS = "Partitions";
 
   public CloudwatchEventReporter(Builder<?> builder) throws IOException {
     super(builder);
@@ -71,8 +64,13 @@ public class CloudwatchEventReporter extends EventReporter {
       this.cloudwatchPusher =
           this.closer.register(new CloudwatchPusher());
     }
-    this.emitValueAsKey = builder.emitValueAsKey;
+    this.serializer = this.closer.register(
+        createSerializer(new NoopSchemaVersionWriter()));
+
     this.prefix = builder.prefix;
+  }
+  protected AvroSerializer<GobblinTrackingEvent> createSerializer(SchemaVersionWriter schemaVersionWriter) throws IOException {
+    return new AvroJsonSerializer<GobblinTrackingEvent>(GobblinTrackingEvent.SCHEMA$, schemaVersionWriter);
   }
 
   @Override
@@ -94,37 +92,6 @@ public class CloudwatchEventReporter extends EventReporter {
     }
   }
 
-  private List<Dimension> createDimensionsFromMetadata(Map<String, String> metadata) {
-    LinkedList<Dimension> dimensions = new LinkedList<>();
-
-    Dimension dimensionJobId = new Dimension();
-    dimensionJobId.setName(METADATA_JOB_ID);
-    dimensionJobId.setValue(metadata.get(METADATA_JOB_ID));
-    dimensions.add(dimensionJobId);
-
-    Dimension dimensionTaskId = new Dimension();
-    dimensionTaskId.setName(METADATA_TASK_ID);
-    dimensionTaskId.setValue(metadata.get(METADATA_TASK_ID));
-    dimensions.add(dimensionTaskId);
-
-    if (metadata.get(METADATA_JOB_STATE) != null) {
-      Dimension dimensionState = new Dimension();
-      dimensionState.setName(METADATA_JOB_STATE);
-      dimensionState.setValue(metadata.get(METADATA_JOB_STATE));
-      dimensions.add(dimensionState);
-    }
-
-    if (metadata.get(EventSubmitter.EVENT_TYPE) != null) {
-      Dimension dimensionEventType = new Dimension();
-      dimensionEventType.setName(EventSubmitter.EVENT_TYPE);
-      dimensionEventType.setValue(metadata.get(EventSubmitter.EVENT_TYPE));
-      dimensions.add(dimensionEventType);
-    }
-
-
-    return dimensions;
-  }
-
   /**
    * Extracts the event and its metadata from {@link GobblinTrackingEvent} and creates
    * timestamped name value pairs
@@ -133,51 +100,9 @@ public class CloudwatchEventReporter extends EventReporter {
    * @throws IOException
    */
   private void pushEvent(GobblinTrackingEvent event) throws IOException {
-
-    Map<String, String> metadata = event.getMetadata();
-
-    String name = event.getName();
-    long timestamp = event.getTimestamp();
-    MultiPartEvent multipartEvent = MultiPartEvent.getEvent(metadata.get(GobblinEventBuilder.EVENT_TYPE));
-    if (multipartEvent == null) {
-      List<Dimension> dimensions = createDimensionsFromMetadata(metadata);
-      cloudwatchPusher.push(JOINER.join(prefix, name), EMTPY_VALUE, timestamp, dimensions);
-    }
-    else {
-      for (String field : multipartEvent.getMetadataFields()) {
-        String value = metadata.get(field);
-        List<Dimension> dimensions = createDimensionsFromMetadata(metadata);
-
-        if (value == null) {
-          cloudwatchPusher.push(JOINER.join(prefix, name, field), EMTPY_VALUE, timestamp, dimensions);
-        } else {
-          if (emitAsKey(field)) {
-            // metric value is emitted as part of the keys
-            cloudwatchPusher.push(JOINER.join(prefix, name, field, value), 1D, timestamp, dimensions);
-          } else {
-            cloudwatchPusher.push(JOINER.join(prefix, name, field), convertValue(field, value), timestamp, dimensions);
-          }
-        }
-      }
-    }
-  }
-
-  private Double convertValue(String field, String value) {
-    return METADATA_DURATION.equals(field) ? convertDuration(TimeUnit.MILLISECONDS.toNanos(Long.parseLong(value)))
-        : Double.parseDouble(value);
-  }
-
-  /**
-   * Non-numeric event values may be emitted as part of the key by applying them to the end of the key if
-   * {@link ConfigurationKeys#METRICS_REPORTING_GRAPHITE_EVENTS_VALUE_AS_KEY} is set. Thus such events can be still
-   * reported even when the backend doesn't accept text values through Graphite
-   *
-   * @param field name of the metric's metadata fields
-   * @return true if event value is emitted in the key
-   */
-  private boolean emitAsKey(String field) {
-    return emitValueAsKey
-        && (field.equals(TaskEvent.METADATA_TASK_WORKING_STATE) || field.equals(JobEvent.METADATA_JOB_STATE));
+    String jsonEvent =
+        new String(this.serializer.serializeRecord(event), "UTF8").trim();
+    cloudwatchPusher.push(event.getTimestamp(), event.getMetadata().get(EventSubmitter.EVENT_TYPE), jsonEvent);
   }
 
   /**
@@ -243,14 +168,6 @@ public class CloudwatchEventReporter extends EventReporter {
 
     public T withPrefix(String prefix) {
       this.prefix = prefix;
-      return self();
-    }
-
-    /**
-     * Set flag that forces the reporter to emit non-numeric event values as part of the key
-     */
-    public T withEmitValueAsKey(boolean emitValueAsKey) {
-      this.emitValueAsKey = emitValueAsKey;
       return self();
     }
 

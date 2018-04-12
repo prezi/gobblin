@@ -19,20 +19,20 @@ package org.apache.gobblin.metrics.cloudwatch;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Date;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
-import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
-import com.amazonaws.services.cloudwatch.model.Dimension;
-import com.amazonaws.services.cloudwatch.model.MetricDatum;
-import com.amazonaws.services.cloudwatch.model.PutMetricDataRequest;
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import com.amazonaws.services.logs.AWSLogs;
+import com.amazonaws.services.logs.AWSLogsClient;
+import com.amazonaws.services.logs.model.CreateLogStreamRequest;
+import com.amazonaws.services.logs.model.DescribeLogStreamsRequest;
+import com.amazonaws.services.logs.model.DescribeLogStreamsResult;
+import com.amazonaws.services.logs.model.InputLogEvent;
+import com.amazonaws.services.logs.model.PutLogEventsRequest;
+import com.amazonaws.services.logs.model.PutLogEventsResult;
 
 
 /**
@@ -43,55 +43,88 @@ import com.amazonaws.services.cloudwatch.model.StandardUnit;
  */
 public class CloudwatchPusher implements Closeable {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(CloudwatchReporter.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(CloudwatchPusher.class);
+  public static final String LOG_GROUP_NAME = "prezi/data/gobblin";
+  public static final String LOG_STREAM_NAME = "gobblin1";
 
-  private LinkedBlockingQueue<MetricDatum> metrics = new LinkedBlockingQueue<>();
+  private LinkedBlockingQueue<InputLogEvent> events = new LinkedBlockingQueue<>();
 
-  private AmazonCloudWatch cloudwatchSender;
+  private AWSLogs awsLogClient;
+
+  private String sequenceToken;
+
+  private int EVENT_BATCH_SIZE = 10;
 
   public CloudwatchPusher() throws IOException {
-    if (this.cloudwatchSender == null) {
-      this.cloudwatchSender = AmazonCloudWatchClientBuilder.defaultClient();;
+    boolean isCreateLogStream = true;
+    if (this.awsLogClient == null) {
+      this.awsLogClient = AWSLogsClient.builder().build();
+      DescribeLogStreamsRequest describeLogStreamsRequest = new DescribeLogStreamsRequest();
+      describeLogStreamsRequest.setLogGroupName(LOG_GROUP_NAME);
+      describeLogStreamsRequest.setLogStreamNamePrefix(LOG_STREAM_NAME);
+      DescribeLogStreamsResult res = awsLogClient.describeLogStreams(describeLogStreamsRequest);
+
+      if (res.getLogStreams().size() == 0 && isCreateLogStream) {
+        CreateLogStreamRequest logStreamRequest = new CreateLogStreamRequest();
+        logStreamRequest.setLogGroupName(LOG_GROUP_NAME);
+        logStreamRequest.setLogStreamName(LOG_STREAM_NAME);
+
+        awsLogClient.createLogStream(logStreamRequest);
+      } else if (res.getLogStreams().size() == 0) {
+        throw new RuntimeException("LogStream " + LOG_STREAM_NAME + " does not exists");
+      }
+
+      this.sequenceToken = res.getLogStreams().get(0).getUploadSequenceToken();
+
     }
   }
 
   /**
    * Pushes a single metrics through
    *
-   * @param name metric name
-   * @param value metric value
    * @param timestamp associated timestamp
+   * @param event is the json representation of the event
    * @throws IOException
    */
-  public void push(String name, Double value, long timestamp, List<Dimension> dimensions) throws IOException {
-    MetricDatum datum = new MetricDatum()
-        .withMetricName(name)
-        .withUnit(StandardUnit.None)
-        .withValue(value)
-        .withTimestamp(new Date(timestamp))
-        .withDimensions(dimensions);
+  public void push(long timestamp, String eventType, String event) throws IOException {
 
-    metrics.add(datum);
+    InputLogEvent inputLog = new InputLogEvent()
+        .withTimestamp(timestamp)
+        .withMessage(event);
+
+    events.add(inputLog);
+    LOGGER.info("Sending log: {}", inputLog);
 
   }
 
-  public void flush() throws IOException {
-    LinkedList<MetricDatum> metricsToSend = new LinkedList<>();
-    long numberOfRecords = metrics.drainTo(metricsToSend);
+  public synchronized void flush() throws IOException {
+    LinkedList<InputLogEvent> eventsToSend = new LinkedList<>();
+    long numberOfRecords = events.drainTo(eventsToSend, EVENT_BATCH_SIZE);
 
     if (numberOfRecords > 0 ) {
-      PutMetricDataRequest request = new PutMetricDataRequest().withNamespace("prezi/data/gobblin").withMetricData(metricsToSend);
+      PutLogEventsRequest request = new PutLogEventsRequest();
+      request.setLogEvents(eventsToSend);
+      request.setLogGroupName(LOG_GROUP_NAME);
+      request.setLogStreamName(LOG_STREAM_NAME);
+      request.setSequenceToken(this.sequenceToken);
 
-      this.cloudwatchSender.putMetricData(request);
-      LOGGER.debug("{} metric was pushed to Cloudwatch",numberOfRecords);
+      PutLogEventsResult result = this.awsLogClient.putLogEvents(request);
+      this.sequenceToken = result.getNextSequenceToken();
+
+      LOGGER.debug("{} metric was pushed to Cloudwatch and {} failed",numberOfRecords);
     }else {
       LOGGER.debug("No metric to push to Cloudwatch");
+    }
+
+
+    if (events.size() > 0) {
+      flush();
     }
   }
 
   @Override
   public void close() throws IOException {
-    this.cloudwatchSender.shutdown();
+    this.awsLogClient.shutdown();
   }
 
 }

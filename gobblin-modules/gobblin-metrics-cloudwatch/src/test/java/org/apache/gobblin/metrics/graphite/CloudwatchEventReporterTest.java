@@ -36,7 +36,7 @@ import org.apache.gobblin.metrics.event.TaskEvent;
 
 
 /**
- * Test for GraphiteEventReporter using a mock backend ({@link TestGraphiteSender})
+ * Test for CloudwatchEventReporter using a mock backend ({@link TestGraphiteSender})
  *
  * @author Lorand Bendig
  *
@@ -66,7 +66,7 @@ public class CloudwatchEventReporterTest {
         MetricContext metricContext =
             MetricContext.builder(this.getClass().getCanonicalName() + ".testCloudwatchReporter1").build();
 
-        CloudwatchEventReporter cloudwatchEventReporter = getBuilder(metricContext).withEmitValueAsKey(false).build();) {
+        CloudwatchEventReporter cloudwatchEventReporter = getBuilder(metricContext).build();) {
 
       Map<String, String> metadata = Maps.newHashMap();
       metadata.put(JobEvent.METADATA_JOB_ID, "job1");
@@ -102,14 +102,14 @@ public class CloudwatchEventReporterTest {
   @Test
   public void testMultiPartEvent() throws IOException {
     try (
-        MetricContext metricContext =
+      MetricContext metricContext =
             MetricContext.builder(this.getClass().getCanonicalName() + ".testCloudwatchReporter2").build();
 
-        CloudwatchEventReporter graphiteEventReporter = getBuilder(metricContext).withEmitValueAsKey(true).build();) {
+      CloudwatchEventReporter graphiteEventReporter = getBuilder(metricContext).build();) {
 
       Map<String, String> metadata = Maps.newHashMap();
       metadata.put(JobEvent.METADATA_JOB_ID, "job2");
-      metadata.put(TaskEvent.METADATA_TASK_ID, "task2");
+      metadata.put(TaskEvent.METADATA_TASK_ID, null);
       metadata.put(EventSubmitter.EVENT_TYPE, "JobStateEvent");
       metadata.put(JobEvent.METADATA_JOB_START_TIME, "1457736710521");
       metadata.put(JobEvent.METADATA_JOB_END_TIME, "1457736710734");
