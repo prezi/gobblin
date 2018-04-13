@@ -44,38 +44,40 @@ import com.amazonaws.services.logs.model.PutLogEventsResult;
 public class CloudwatchPusher implements Closeable {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(CloudwatchPusher.class);
-  public static final String LOG_GROUP_NAME = "prezi/data/gobblin";
-  public static final String LOG_STREAM_NAME = "gobblin1";
 
   private LinkedBlockingQueue<InputLogEvent> events = new LinkedBlockingQueue<>();
 
   private AWSLogs awsLogClient;
 
-  private String sequenceToken;
+  private int EVENT_BATCH_SIZE = 1000;
+  private String _logGroupName;
+  private String _logStreamName;
+  private boolean _isCreateLogStream;
 
-  private int EVENT_BATCH_SIZE = 10;
+  public CloudwatchPusher(String logGroupName, String logStreamName, boolean isCreateLogStream) throws IOException {
+    this._logGroupName = logGroupName;
+    this._logStreamName = logStreamName;
+    this._isCreateLogStream = isCreateLogStream;
 
-  public CloudwatchPusher() throws IOException {
-    boolean isCreateLogStream = true;
+    LOGGER.info("Using CloudwatchPusher with LogGroupName: {}, LogStreamName: {}, isCreateLogStream: {}", this._logGroupName, this._logGroupName, this._isCreateLogStream);
     if (this.awsLogClient == null) {
       this.awsLogClient = AWSLogsClient.builder().build();
       DescribeLogStreamsRequest describeLogStreamsRequest = new DescribeLogStreamsRequest();
-      describeLogStreamsRequest.setLogGroupName(LOG_GROUP_NAME);
-      describeLogStreamsRequest.setLogStreamNamePrefix(LOG_STREAM_NAME);
+      describeLogStreamsRequest.setLogGroupName(this._logGroupName);
+      describeLogStreamsRequest.setLogStreamNamePrefix(this._logStreamName);
+
       DescribeLogStreamsResult res = awsLogClient.describeLogStreams(describeLogStreamsRequest);
 
-      if (res.getLogStreams().size() == 0 && isCreateLogStream) {
+      if (res.getLogStreams().size() == 0 && this._isCreateLogStream) {
         CreateLogStreamRequest logStreamRequest = new CreateLogStreamRequest();
-        logStreamRequest.setLogGroupName(LOG_GROUP_NAME);
-        logStreamRequest.setLogStreamName(LOG_STREAM_NAME);
+        logStreamRequest.setLogGroupName(this._logGroupName);
+        logStreamRequest.setLogStreamName(this._logStreamName);
 
         awsLogClient.createLogStream(logStreamRequest);
+
       } else if (res.getLogStreams().size() == 0) {
-        throw new RuntimeException("LogStream " + LOG_STREAM_NAME + " does not exists");
+        throw new RuntimeException("LogStream " + this._logStreamName + " does not exists");
       }
-
-      this.sequenceToken = res.getLogStreams().get(0).getUploadSequenceToken();
-
     }
   }
 
@@ -97,6 +99,15 @@ public class CloudwatchPusher implements Closeable {
 
   }
 
+  public String getSequenceToken() {
+    DescribeLogStreamsRequest describeLogStreamsRequest = new DescribeLogStreamsRequest();
+    describeLogStreamsRequest.setLogGroupName(this._logGroupName);
+    describeLogStreamsRequest.setLogStreamNamePrefix(this._logStreamName);
+
+    DescribeLogStreamsResult res = awsLogClient.describeLogStreams(describeLogStreamsRequest);
+    return res.getLogStreams().get(0).getUploadSequenceToken();
+  }
+
   public synchronized void flush() throws IOException {
     LinkedList<InputLogEvent> eventsToSend = new LinkedList<>();
     long numberOfRecords = events.drainTo(eventsToSend, EVENT_BATCH_SIZE);
@@ -104,13 +115,11 @@ public class CloudwatchPusher implements Closeable {
     if (numberOfRecords > 0 ) {
       PutLogEventsRequest request = new PutLogEventsRequest();
       request.setLogEvents(eventsToSend);
-      request.setLogGroupName(LOG_GROUP_NAME);
-      request.setLogStreamName(LOG_STREAM_NAME);
-      request.setSequenceToken(this.sequenceToken);
+      request.setLogGroupName(this._logGroupName);
+      request.setLogStreamName(this._logStreamName);
+      request.setSequenceToken(getSequenceToken());
 
       PutLogEventsResult result = this.awsLogClient.putLogEvents(request);
-      this.sequenceToken = result.getNextSequenceToken();
-
       LOGGER.debug("{} metric was pushed to Cloudwatch and {} failed",numberOfRecords);
     }else {
       LOGGER.debug("No metric to push to Cloudwatch");
@@ -126,5 +135,4 @@ public class CloudwatchPusher implements Closeable {
   public void close() throws IOException {
     this.awsLogClient.shutdown();
   }
-
 }

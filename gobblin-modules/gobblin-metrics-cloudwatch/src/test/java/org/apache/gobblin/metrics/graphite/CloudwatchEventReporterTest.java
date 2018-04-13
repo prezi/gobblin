@@ -53,7 +53,7 @@ public class CloudwatchEventReporterTest {
 
   @BeforeClass
   public void setUp() throws IOException {
-    this.cloudwatchPusher = new CloudwatchPusher();
+    this.cloudwatchPusher = new CloudwatchPusher("/prezi/data/gobblin","test", true);
   }
 
   private CloudwatchEventReporter.BuilderImpl getBuilder(MetricContext metricContext) {

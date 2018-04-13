@@ -45,16 +45,11 @@ import org.apache.gobblin.metrics.reporter.util.SchemaVersionWriter;
  */
 public class CloudwatchEventReporter extends EventReporter {
 
+  private static final String DEFAULT_LOG_GROUP_NAME = "gobblin";
   private final CloudwatchPusher cloudwatchPusher;
 
-  private static final Double EMTPY_VALUE = 0D;
   private static final Logger LOGGER = LoggerFactory.getLogger(CloudwatchEventReporter.class);
   private final AvroSerializer<GobblinTrackingEvent> serializer;
-  private String prefix;
-
-  public static final String DB_NAME = "DBName";
-  public static final String TABLE_NAME = "TableName";
-  public static final String PARTITIONS = "Partitions";
 
   public CloudwatchEventReporter(Builder<?> builder) throws IOException {
     super(builder);
@@ -62,13 +57,13 @@ public class CloudwatchEventReporter extends EventReporter {
       this.cloudwatchPusher = builder.cloudwatchPusher.get();
     } else {
       this.cloudwatchPusher =
-          this.closer.register(new CloudwatchPusher());
+          this.closer.register(new CloudwatchPusher(builder.logGroupName, builder.logStreamName, builder.isCreateLogStream));
     }
     this.serializer = this.closer.register(
         createSerializer(new NoopSchemaVersionWriter()));
 
-    this.prefix = builder.prefix;
   }
+
   protected AvroSerializer<GobblinTrackingEvent> createSerializer(SchemaVersionWriter schemaVersionWriter) throws IOException {
     return new AvroJsonSerializer<GobblinTrackingEvent>(GobblinTrackingEvent.SCHEMA$, schemaVersionWriter);
   }
@@ -145,12 +140,13 @@ public class CloudwatchEventReporter extends EventReporter {
 
   /**
    * Builder for {@link CloudwatchEventReporter}.
-   * Defaults to no filter, reporting rates in seconds and times in milliseconds using TCP connection
+   * Defaults to no filter
    */
   public static abstract class Builder<T extends EventReporter.Builder<T>> extends EventReporter.Builder<T> {
     protected Optional<CloudwatchPusher> cloudwatchPusher;
-    protected boolean emitValueAsKey;
-    protected String prefix;
+    private String logGroupName = DEFAULT_LOG_GROUP_NAME;
+    private String logStreamName;
+    private boolean isCreateLogStream = false;
 
     protected Builder(MetricContext context) {
       super(context);
@@ -166,8 +162,18 @@ public class CloudwatchEventReporter extends EventReporter {
     }
 
 
-    public T withPrefix(String prefix) {
-      this.prefix = prefix;
+    public T withLogGroupName(String logGroupName) {
+      this.logGroupName = logGroupName;
+      return self();
+    }
+
+    public T withLogStreamName(String logStreamName) {
+      this.logStreamName = logStreamName;
+      return self();
+    }
+
+    public T withIsCreateLogStream(boolean isCreateLogStream) {
+      this.isCreateLogStream = isCreateLogStream;
       return self();
     }
 
