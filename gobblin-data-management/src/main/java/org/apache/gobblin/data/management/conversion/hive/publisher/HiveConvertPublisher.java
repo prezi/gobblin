@@ -22,13 +22,8 @@ import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-
 import java.util.Set;
 import java.util.regex.Pattern;
-
-import javax.annotation.Nonnull;
-
-import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.gobblin.configuration.SourceState;
@@ -56,6 +51,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 
+import javax.annotation.Nonnull;
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.State;
 import org.apache.gobblin.configuration.WorkUnitState;
@@ -72,14 +70,14 @@ import org.apache.gobblin.data.management.conversion.hive.watermarker.HiveSource
 import org.apache.gobblin.data.management.conversion.hive.watermarker.PartitionLevelWatermarker;
 import org.apache.gobblin.data.management.copy.hive.HiveDatasetFinder;
 import org.apache.gobblin.hive.HiveMetastoreClientPool;
-import org.apache.gobblin.util.AutoReturnableObject;
-import org.apache.gobblin.util.HiveJdbcConnector;
 import org.apache.gobblin.instrumented.Instrumented;
 import org.apache.gobblin.metrics.MetricContext;
 import org.apache.gobblin.metrics.event.EventSubmitter;
 import org.apache.gobblin.metrics.event.sla.SlaEventSubmitter;
 import org.apache.gobblin.publisher.DataPublisher;
+import org.apache.gobblin.util.AutoReturnableObject;
 import org.apache.gobblin.util.HadoopUtils;
+import org.apache.gobblin.util.HiveJdbcConnector;
 import org.apache.gobblin.util.WriterUtils;
 import org.apache.gobblin.util.reflection.GobblinConstructorUtils;
 
@@ -123,7 +121,7 @@ public class HiveConvertPublisher extends DataPublisher {
     }
 
     Configuration conf = new Configuration();
-    Optional<String> uri = Optional.fromNullable(this.state.getProp(ConfigurationKeys.WRITER_FILE_SYSTEM_URI));
+    Optional<String> uri = Optional.fromNullable(this.state.getProp(ConfigurationKeys.DATA_PUBLISHER_FILE_SYSTEM_URI));
     if (uri.isPresent()) {
       this.fs = FileSystem.get(URI.create(uri.get()), conf);
     } else {
