@@ -33,6 +33,8 @@ import org.apache.gobblin.metrics.reporter.util.AvroJsonSerializer;
 import org.apache.gobblin.metrics.reporter.util.AvroSerializer;
 import org.apache.gobblin.metrics.reporter.util.NoopSchemaVersionWriter;
 import org.apache.gobblin.metrics.reporter.util.SchemaVersionWriter;
+import org.apache.gobblin.runtime.locks.JobLock;
+import org.apache.gobblin.runtime.locks.JobLockException;
 
 
 /**
@@ -51,13 +53,14 @@ public class CloudwatchEventReporter extends EventReporter {
   private static final Logger LOGGER = LoggerFactory.getLogger(CloudwatchEventReporter.class);
   private final AvroSerializer<GobblinTrackingEvent> serializer;
 
-  public CloudwatchEventReporter(Builder<?> builder) throws IOException {
+  public CloudwatchEventReporter(Builder<?> builder)
+      throws IOException, JobLockException {
     super(builder);
     if (builder.cloudwatchPusher.isPresent()) {
       this.cloudwatchPusher = builder.cloudwatchPusher.get();
     } else {
       this.cloudwatchPusher =
-          this.closer.register(new CloudwatchPusher(builder.logGroupName, builder.logStreamName, builder.isCreateLogStream));
+          this.closer.register(new CloudwatchPusher(builder.logGroupName, builder.logStreamName, builder.isCreateLogStream, builder.lock));
     }
     this.serializer = this.closer.register(
         createSerializer(new NoopSchemaVersionWriter()));
@@ -79,11 +82,8 @@ public class CloudwatchEventReporter extends EventReporter {
       this.cloudwatchPusher.flush();
     } catch (IOException e) {
       LOGGER.error("Error sending event to Cloudwatch", e);
-      try {
-        this.cloudwatchPusher.flush();
-      } catch (IOException e1) {
-        LOGGER.error("Unable to flush previous events to Cloudwatch", e);
-      }
+    } catch (JobLockException e) {
+      LOGGER.error("Job lock exception:", e);
     }
   }
 
@@ -147,6 +147,7 @@ public class CloudwatchEventReporter extends EventReporter {
     private String logGroupName = DEFAULT_LOG_GROUP_NAME;
     private String logStreamName;
     private boolean isCreateLogStream = false;
+    private JobLock lock;
 
     protected Builder(MetricContext context) {
       super(context);
@@ -177,13 +178,23 @@ public class CloudwatchEventReporter extends EventReporter {
       return self();
     }
 
+    public T withLock(JobLock lock) {
+      this.lock = lock;
+      return self();
+    }
+
     /**
      * Builds and returns {@link CloudwatchEventReporter}.
      *
      * @return GraphiteEventReporter
      */
-    public CloudwatchEventReporter build() throws IOException {
-      return new CloudwatchEventReporter(this);
+    public CloudwatchEventReporter build()
+        throws IOException {
+      try {
+        return new CloudwatchEventReporter(this);
+      } catch (JobLockException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 

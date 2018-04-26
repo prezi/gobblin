@@ -19,12 +19,14 @@ package org.apache.gobblin.metrics.graphite;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Properties;
 
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import com.google.common.collect.Maps;
 
+import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.metrics.GobblinTrackingEvent;
 import org.apache.gobblin.metrics.MetricContext;
 import org.apache.gobblin.metrics.cloudwatch.CloudwatchEventReporter;
@@ -33,6 +35,8 @@ import org.apache.gobblin.metrics.event.EventSubmitter;
 import org.apache.gobblin.metrics.event.JobEvent;
 import org.apache.gobblin.metrics.event.MultiPartEvent;
 import org.apache.gobblin.metrics.event.TaskEvent;
+import org.apache.gobblin.runtime.locks.JobLockException;
+import org.apache.gobblin.runtime.locks.ZookeeperBasedJobLock;
 
 
 /**
@@ -52,8 +56,15 @@ public class CloudwatchEventReporterTest {
   private CloudwatchPusher cloudwatchPusher;
 
   @BeforeClass
-  public void setUp() throws IOException {
-    this.cloudwatchPusher = new CloudwatchPusher("/prezi/data/gobblin","test", true);
+  public void setUp()
+      throws IOException, JobLockException {
+    Properties properties = new Properties();
+    properties.put("gobblin.locks.zookeeper.connection_string", "localhost:2181");
+    properties.put(ConfigurationKeys.JOB_NAME_KEY, "test_metric");
+
+    ZookeeperBasedJobLock jobLock = new ZookeeperBasedJobLock(properties);
+
+    this.cloudwatchPusher = new CloudwatchPusher("/prezi/data/gobblin","test", true, jobLock);
   }
 
   private CloudwatchEventReporter.BuilderImpl getBuilder(MetricContext metricContext) {

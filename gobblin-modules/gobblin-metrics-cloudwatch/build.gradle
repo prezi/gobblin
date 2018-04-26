@@ -33,6 +33,7 @@ apply plugin: "com.commercehub.gradle.plugin.avro"
 
 dependencies {
   compile project(":gobblin-metrics-libs:gobblin-metrics-base")
+  compile project(":gobblin-runtime")
 
   compile externalDependency.guava
   compile externalDependency.metricsCore
@@ -40,6 +41,9 @@ dependencies {
   compile externalDependency.awsCloudwatch
   compile externalDependency.awsEvents
   compile externalDependency.awsLogs
+  compile externalDependency.curatorFramework
+  compile externalDependency.curatorClient
+  compile externalDependency.curatorRecipes
 
   testCompile externalDependency.testng
   testCompile externalDependency.mockito

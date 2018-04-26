@@ -19,6 +19,7 @@ package org.apache.gobblin.metrics.cloudwatch;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -33,6 +34,9 @@ import com.amazonaws.services.logs.model.DescribeLogStreamsResult;
 import com.amazonaws.services.logs.model.InputLogEvent;
 import com.amazonaws.services.logs.model.PutLogEventsRequest;
 import com.amazonaws.services.logs.model.PutLogEventsResult;
+
+import org.apache.gobblin.runtime.locks.JobLock;
+import org.apache.gobblin.runtime.locks.JobLockException;
 
 
 /**
@@ -53,12 +57,13 @@ public class CloudwatchPusher implements Closeable {
   private String _logGroupName;
   private String _logStreamName;
   private boolean _isCreateLogStream;
+  private JobLock lock;
 
-  public CloudwatchPusher(String logGroupName, String logStreamName, boolean isCreateLogStream) throws IOException {
+  public CloudwatchPusher(String logGroupName, String logStreamName, boolean isCreateLogStream, JobLock lock) throws IOException {
     this._logGroupName = logGroupName;
     this._logStreamName = logStreamName;
     this._isCreateLogStream = isCreateLogStream;
-
+    this.lock = lock;
     LOGGER.info("Using CloudwatchPusher with LogGroupName: {}, LogStreamName: {}, isCreateLogStream: {}", this._logGroupName, this._logGroupName, this._isCreateLogStream);
     if (this.awsLogClient == null) {
       this.awsLogClient = AWSLogsClient.builder().build();
@@ -108,31 +113,51 @@ public class CloudwatchPusher implements Closeable {
     return res.getLogStreams().get(0).getUploadSequenceToken();
   }
 
-  public synchronized void flush() throws IOException {
-    LinkedList<InputLogEvent> eventsToSend = new LinkedList<>();
-    long numberOfRecords = events.drainTo(eventsToSend, EVENT_BATCH_SIZE);
-
-    if (numberOfRecords > 0 ) {
-      PutLogEventsRequest request = new PutLogEventsRequest();
-      request.setLogEvents(eventsToSend);
-      request.setLogGroupName(this._logGroupName);
-      request.setLogStreamName(this._logStreamName);
-      request.setSequenceToken(getSequenceToken());
-
-      PutLogEventsResult result = this.awsLogClient.putLogEvents(request);
-      LOGGER.debug("{} metric was pushed to Cloudwatch and {} failed",numberOfRecords);
-    }else {
-      LOGGER.debug("No metric to push to Cloudwatch");
+  public synchronized void flush()
+      throws IOException, JobLockException {
+    if (!this.lock.isLocked()) {
+      if (!this.lock.tryLock()) {
+        throw new RuntimeException("Unable to get lock for metric lock");
+      }
     }
+    try {
+      LinkedList<InputLogEvent> eventsToSend = new LinkedList<>();
+      long numberOfRecords = events.drainTo(eventsToSend, EVENT_BATCH_SIZE);
+      eventsToSend.sort(Comparator.comparing(InputLogEvent::getTimestamp));
 
+      if (numberOfRecords > 0) {
+        PutLogEventsRequest request = new PutLogEventsRequest();
+        request.setLogEvents(eventsToSend);
+        request.setLogGroupName(this._logGroupName);
+        request.setLogStreamName(this._logStreamName);
+        request.setSequenceToken(getSequenceToken());
 
-    if (events.size() > 0) {
-      flush();
+        PutLogEventsResult result = this.awsLogClient.putLogEvents(request);
+        LOGGER.debug("{} metric was pushed to Cloudwatch and {} failed", numberOfRecords);
+      } else {
+        LOGGER.debug("No metric to push to Cloudwatch");
+      }
+
+      if (events.size() > 0) {
+        flush();
+      }
+    } finally{
+      if (this.lock.isLocked()) {
+        this.lock.unlock();
+      }
     }
   }
 
   @Override
   public void close() throws IOException {
+    try {
+      if (this.lock.isLocked()) {
+        this.lock.unlock();
+      }
+    } catch (JobLockException e) {
+      LOGGER.error(e.getMessage());
+      throw new RuntimeException(e);
+    }
     this.awsLogClient.shutdown();
   }
 }
