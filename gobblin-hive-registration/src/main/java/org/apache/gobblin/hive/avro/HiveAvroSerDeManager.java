@@ -19,13 +19,19 @@ package org.apache.gobblin.hive.avro;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.avro.Schema;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
 import com.codahale.metrics.Timer;
+import com.github.rholder.retry.Retryer;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,6 +45,12 @@ import org.apache.gobblin.instrumented.Instrumented;
 import org.apache.gobblin.metrics.MetricContext;
 import org.apache.gobblin.util.AvroUtils;
 import org.apache.gobblin.util.HadoopUtils;
+import org.apache.gobblin.util.retry.RetryerFactory;
+
+import static org.apache.gobblin.util.retry.RetryerFactory.RETRY_INTERVAL_MS;
+import static org.apache.gobblin.util.retry.RetryerFactory.RETRY_MULTIPLIER;
+import static org.apache.gobblin.util.retry.RetryerFactory.RETRY_TIME_OUT_MS;
+import static org.apache.gobblin.util.retry.RetryerFactory.RETRY_TYPE;
 
 
 /**
@@ -69,6 +81,19 @@ public class HiveAvroSerDeManager extends HiveSerDeManager {
 
   private final MetricContext metricContext ;
 
+  static final Config COMPACTION_RETRY_DEFAULTS;
+
+  static {
+    Map<String, Object> configMap =
+        ImmutableMap.<String, Object>builder()
+            .put(RETRY_TIME_OUT_MS, TimeUnit.MINUTES.toMillis(2L))   //Overall retry for 2 minutes
+            .put(RETRY_INTERVAL_MS, TimeUnit.SECONDS.toMillis(5L)) //Try to retry 5 seconds
+            .put(RETRY_MULTIPLIER, 2L) // Muliply by 2 every attempt
+            .put(RETRY_TYPE, RetryerFactory.RetryType.EXPONENTIAL.name())
+            .build();
+    COMPACTION_RETRY_DEFAULTS = ConfigFactory.parseMap(configMap);
+  };
+
   public HiveAvroSerDeManager(State props) throws IOException {
     super(props);
 
@@ -84,7 +109,7 @@ public class HiveAvroSerDeManager extends HiveSerDeManager {
         props.getPropAsInt(SCHEMA_LITERAL_LENGTH_LIMIT, DEFAULT_SCHEMA_LITERAL_LENGTH_LIMIT);
 
     this.metricContext = Instrumented.getMetricContext(props, HiveAvroSerDeManager.class);
-  }
+    }
 
   /**
    * Add an Avro {@link Schema} to the given {@link HiveRegistrationUnit}.
@@ -165,12 +190,29 @@ public class HiveAvroSerDeManager extends HiveSerDeManager {
   protected void addSchemaFromAvroFile(Schema schema, Path schemaFile, HiveRegistrationUnit hiveUnit)
       throws IOException {
     Preconditions.checkNotNull(schema);
+    Retryer<Void> retryer = RetryerFactory.newInstance(COMPACTION_RETRY_DEFAULTS);
 
     String schemaStr = schema.toString();
     if (schemaStr.length() <= this.schemaLiteralLengthLimit) {
+      log.info("Not using Avro file as literal is smaller than limit {}", this.schemaLiteralLengthLimit);
       hiveUnit.setSerDeProp(SCHEMA_LITERAL, schema.toString());
     } else {
-      AvroUtils.writeSchemaToFile(schema, schemaFile, this.fs, true);
+        try {
+          log.info("Using schema file for {}", schema.toString());
+
+          retryer.call(() -> {
+            log.info("Writing schema file to {}", schemaFile.getName());
+            AvroUtils.writeSchemaToFile(schema, schemaFile, this.fs, true);
+            if (!fs.exists(schemaFile)) {
+              log.info("Schema file {} does not exists", schemaFile.getName());
+              throw new IOException("Schema file " + schemaFile + " does not exists however it should. Will wait more.");
+            }
+            return null;
+          });
+        } catch (Exception e) {
+          throw new IOException(e);
+        }
+
       log.info("Using schema file " + schemaFile.toString());
       hiveUnit.setSerDeProp(SCHEMA_URL, schemaFile.toString());
     }
