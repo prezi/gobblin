@@ -1,0 +1,22 @@
+{
+  "test" : {
+    "ip_address" : {
+      "string" : "81.2.69.160"
+    },
+    "test_property1" : null,
+    "test_property2" : {
+      "string" : "rtrxcprnjxoqwiicnufamaxjfkrcidxovotagqgkudupqgpbhcolqkfxfaeqfxmhxipmcjnpifvfqmevlojstyiyqqiyutygmmmgdvjvyexionlvwngfgsqxjagtptlfesbqprxobbuohorulotlbkewauwqlpoenyourxvxqphrdudlfpypyatpbyo"
+    }
+  },
+  "test2" : {
+    "type" : "oyeuvohkgj",
+    "test_attribute_ts" : -1398643884714775960,
+    "attribute12" : 7422438609948739627
+  },
+  "test3" : {
+    "type" : "yjjvluxg",
+    "url" : {
+      "string" : "qoygdlbwremjcw"
+    }
+  }
+}

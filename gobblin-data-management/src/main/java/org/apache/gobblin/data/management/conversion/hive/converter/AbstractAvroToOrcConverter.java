@@ -25,13 +25,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 
-import lombok.extern.slf4j.Slf4j;
-
 import org.apache.avro.Schema;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.gobblin.data.management.conversion.hive.entities.HiveProcessingEntity;
-import org.apache.gobblin.data.management.conversion.hive.task.HiveConverterUtils;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -53,16 +49,20 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.gobblin.configuration.WorkUnitState;
 import org.apache.gobblin.converter.Converter;
 import org.apache.gobblin.converter.DataConversionException;
 import org.apache.gobblin.converter.SingleRecordIterable;
 import org.apache.gobblin.data.management.conversion.hive.dataset.ConvertibleHiveDataset;
 import org.apache.gobblin.data.management.conversion.hive.dataset.ConvertibleHiveDataset.ConversionConfig;
+import org.apache.gobblin.data.management.conversion.hive.entities.HiveProcessingEntity;
 import org.apache.gobblin.data.management.conversion.hive.entities.QueryBasedHiveConversionEntity;
 import org.apache.gobblin.data.management.conversion.hive.entities.QueryBasedHivePublishEntity;
 import org.apache.gobblin.data.management.conversion.hive.events.EventWorkunitUtils;
 import org.apache.gobblin.data.management.conversion.hive.query.HiveAvroORCQueryGenerator;
+import org.apache.gobblin.data.management.conversion.hive.task.HiveConverterUtils;
 import org.apache.gobblin.data.management.copy.hive.HiveDatasetFinder;
 import org.apache.gobblin.data.management.copy.hive.WhitelistBlacklist;
 import org.apache.gobblin.hive.HiveMetastoreClientPool;
@@ -100,8 +100,6 @@ public abstract class AbstractAvroToOrcConverter extends Converter<Schema, Schem
    */
   private static final String HIVE_PARTITIONS_INFO = "/";
   private static final String HIVE_PARTITIONS_TYPE = ":";
-
-  protected final FileSystem fs;
 
   /**
    * Supported destination ORC formats
@@ -183,11 +181,6 @@ public abstract class AbstractAvroToOrcConverter extends Converter<Schema, Schem
   protected abstract ConversionConfig getConversionConfig();
 
   public AbstractAvroToOrcConverter() {
-    try {
-      this.fs = FileSystem.get(HadoopUtils.newConfiguration());
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
   }
 
   /**
@@ -273,13 +266,18 @@ public abstract class AbstractAvroToOrcConverter extends Converter<Schema, Schem
      * Upon testing, this did not work
      */
     try {
-      FileStatus sourceDataFileStatus = this.fs.getFileStatus(conversionEntity.getTable().getDataLocation());
+
+      FileSystem fileSystem = conversionEntity.getTable().getDataLocation().getFileSystem(HadoopUtils.newConfiguration());
+      FileStatus sourceDataFileStatus = fileSystem.getFileStatus(conversionEntity.getTable().getDataLocation());
       FsPermission sourceDataPermission = sourceDataFileStatus.getPermission();
-      if (!this.fs.mkdirs(new Path(getConversionConfig().getDestinationDataPath()), sourceDataPermission)) {
+      log.debug("Creating directory {}",getConversionConfig().getDestinationDataPath());
+      if (!fileSystem.mkdirs(new Path(getConversionConfig().getDestinationDataPath()), sourceDataPermission)) {
+        log.error("Failed to create path {} with permissions {}.", new Path(
+            getConversionConfig().getDestinationDataPath()), sourceDataPermission);
         throw new RuntimeException(String.format("Failed to create path %s with permissions %s", new Path(
             getConversionConfig().getDestinationDataPath()), sourceDataPermission));
       } else {
-        this.fs.setPermission(new Path(getConversionConfig().getDestinationDataPath()), sourceDataPermission);
+        fileSystem.setPermission(new Path(getConversionConfig().getDestinationDataPath()), sourceDataPermission);
 
         // Explicitly set group name for destination location if specified otherwise preserve source group name
         String destinationGroupName;
@@ -290,7 +288,7 @@ public abstract class AbstractAvroToOrcConverter extends Converter<Schema, Schem
         }
         if (!workUnit.getPropAsBoolean(HIVE_DATASET_DESTINATION_SKIP_SETGROUP,
             DEFAULT_HIVE_DATASET_DESTINATION_SKIP_SETGROUP)) {
-          this.fs.setOwner(new Path(getConversionConfig().getDestinationDataPath()), null, destinationGroupName);
+          fileSystem.setOwner(new Path(getConversionConfig().getDestinationDataPath()), null, destinationGroupName);
         }
         log.info(String.format("Created %s with permissions %s and group %s", new Path(getConversionConfig()
             .getDestinationDataPath()), sourceDataPermission, sourceDataFileStatus.getGroup()));
@@ -299,17 +297,21 @@ public abstract class AbstractAvroToOrcConverter extends Converter<Schema, Schem
         if (workUnit.contains(HIVE_DATASET_STAGING_GROUP_NAME)) {
           String stagingGroupName = workUnit.getProp(HIVE_DATASET_STAGING_GROUP_NAME);
           log.info("Setting staging directory group name as " + stagingGroupName);
-          this.fs.mkdirs(new Path(getOrcStagingDataLocation(orcStagingTableName)));
-          this.fs.setOwner(new Path(getOrcStagingDataLocation(orcStagingTableName)), null, stagingGroupName);
+          fileSystem.mkdirs(new Path(getOrcStagingDataLocation(orcStagingTableName)));
+          fileSystem.setOwner(new Path(getOrcStagingDataLocation(orcStagingTableName)), null, stagingGroupName);
 
           // Staging directory will be renamed to getOrcDataLocation() and hence it's group name should match
           // with the group name of the staging directory
-          this.fs.mkdirs(new Path(getOrcDataLocation()));
-          this.fs.setOwner(new Path(getOrcDataLocation()), null, stagingGroupName);
+          fileSystem.mkdirs(new Path(getOrcDataLocation()));
+          fileSystem.setOwner(new Path(getOrcDataLocation()), null, stagingGroupName);
         }
       }
     } catch (IOException e) {
+      log.error("Directory creation error {}",e);
       Throwables.propagate(e);
+    } catch (Exception e) {
+      log.error("Directory creation error {}",e);
+      throw e;
     }
 
     // Set hive runtime properties from conversion config
