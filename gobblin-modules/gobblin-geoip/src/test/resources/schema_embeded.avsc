@@ -1,0 +1,63 @@
+{
+  "type": "record",
+  "name": "TestEvent",
+  "namespace": "com.prezi.analytics",
+  "doc": "",
+  "fields": [{
+    "name": "test",
+    "type": {
+      "type": "record",
+      "name": "User",
+      "fields": [{
+        "name": "ip_address",
+        "type": ["null", "string"]
+      }, {
+        "name": "test_property1",
+        "type": ["null", "int"]
+      }, {
+        "name": "test_property2",
+        "type": ["null", "string"]
+      }]
+    },
+    "doc": "Test attributes",
+    "fields": []
+  }, {
+    "name": "test2",
+    "type": {
+      "type": "record",
+      "name": "Test2",
+      "fields": [{
+        "name": "type",
+        "type": "string"
+      }, {
+        "name": "test_attribute_ts",
+        "type": {
+          "type": "long",
+          "logicalType": "timestamp-millis"
+        }
+      }, {
+        "name": "attribute12",
+        "type": "long"
+      }]
+    },
+    "doc": "Test2 attributes",
+    "fields": []
+  }, {
+    "name": "test3",
+    "type": {
+      "type": "record",
+      "name": "Test3",
+      "fields": [{
+        "name": "type",
+        "type": "string"
+      }, {
+        "name": "url",
+        "type": ["null", "string"],
+        "doc": "Url",
+        "default": null
+      }]
+    },
+    "doc": "Test3 attributes",
+    "fields": []
+  }]
+}
