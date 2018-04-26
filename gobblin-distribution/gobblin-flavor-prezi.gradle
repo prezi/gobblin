@@ -27,6 +27,6 @@ dependencies {
   compile project(':gobblin-modules:gobblin-helix')
   compile project(':gobblin-modules:gobblin-metadata')
   compile project(':gobblin-modules:gobblin-grok')
-  compile project(':gobblin-modules:gobblin-cloudwatch')
+  compile project(':gobblin-modules:gobblin-metrics-cloudwatch')
   compile project(':gobblin-modules:gobblin-geoip')
 }
