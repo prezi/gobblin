@@ -18,33 +18,24 @@
 apply plugin: 'java'
 
 dependencies {
+  /*
+   * Keep these dependencies as small as possible: we should not rely on
+   * gobblin-runtime, -core etc as they pull in huge transitive dependency trees!
+   */
   compile project(":gobblin-api")
-  compile project(":gobblin-metrics-libs:gobblin-metrics")
-  compile project(":gobblin-modules:gobblin-kafka-common")
-  compile project(":gobblin-utility")
+  compile project(":gobblin-core")
+  compile project(":gobblin-modules:gobblin-metadata")
 
   compile externalDependency.avro
-  compile externalDependency.datanucleusCore
-  compile externalDependency.datanucleusRdbms
-  compile externalDependency.guava
-  compile externalDependency.hiveCommon
-  compile externalDependency.hiveExec
-
-  compile externalDependency.hiveMetastore
-  compile externalDependency.hiveSerDe
-  compile externalDependency.libthrift
-  compile externalDependency.log4j
+  compile externalDependency.jacksonCore
+  compile externalDependency.jacksonMapper
   compile externalDependency.slf4j
-  compile externalDependency.commonsIo
-  compile externalDependency.commonsLang3
-  compile externalDependency.commonsPool
-  compile externalDependency.findBugsAnnotations
-  compile externalDependency.lombok
-  compile externalDependency.avroMapredH2
 
+  compile 'com.maxmind.geoip2:geoip2:2.11.0'
+
+  testCompile project(":gobblin-test-utils")
   testCompile externalDependency.testng
-  testCompile externalDependency.mockito
-
 }
 
 ext.classification="library"
+
