@@ -85,6 +85,42 @@ public class AvroGeoipEnricherConverterTest {
   }
 
   @Test
+  public void testEnrichEmbededAvroWithNonExistentFieldShouldEndUpWithNullIpFields()
+      throws DataConversionException, IOException, SchemaConversionException {
+    Schema inputSchema = new Schema.Parser()
+        .parse(getClass().getClassLoader().getResourceAsStream("schema_embeded.avsc"));
+
+    String maxmindTestDbUri = "file://"+getClass().getClassLoader().getResource("GeoIP2-City-Test.mmdb").getPath();
+
+    AvroGeoipEnricherConverter converter = new AvroGeoipEnricherConverter();
+    WorkUnitState state = new WorkUnitState();
+    state.setProp(CONVERTER_AVRO_GEOIP_ENRICHER_MAXMIND_DB_PATH, maxmindTestDbUri);
+    state.setProp(CONVERTER_AVRO_GEOIP_ENRICHER_IP_FIELD, "test.ip_address");
+
+    converter.init(state);
+    Schema outputSchema = converter.convertSchema(inputSchema, state);
+
+    GenericDatumReader<GenericRecord> datumReader = new GenericDatumReader<GenericRecord>(inputSchema);
+
+    File tmp = File.createTempFile(this.getClass().getSimpleName(), null);
+
+    InputStream inputStream = getClass().getClassLoader().getResourceAsStream("input_data_embeded_null_ip_field.avro");
+    FileUtils.copyInputStreamToFile(inputStream, tmp);
+
+    DataFileReader<GenericRecord> dataFileReader = new DataFileReader<GenericRecord>(tmp, datumReader);
+    GenericRecord inputRecord = dataFileReader.next();
+
+    Iterable<GenericRecord> genericRecords = converter.convertRecord(outputSchema, inputRecord, state);
+    GenericRecord outputRecord = genericRecords.iterator().next();
+
+    Assert.assertFalse(AvroUtils.getFieldValue(outputRecord, "test.city").isPresent());
+    Assert.assertFalse(AvroUtils.getFieldValue(outputRecord, "test.country").isPresent());
+    Assert.assertFalse(AvroUtils.getFieldValue(outputRecord, "test.country_code").isPresent());
+    Assert.assertFalse(AvroUtils.getFieldValue(outputRecord, "test.ip_address").isPresent());
+  }
+
+
+  @Test
   public void testEnrichEmbededAvroWithDroppingIpField()
       throws DataConversionException, IOException, SchemaConversionException {
     Schema inputSchema = new Schema.Parser()

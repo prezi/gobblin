@@ -19,6 +19,7 @@ package org.apache.gobblin.converter.avro;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -34,7 +35,6 @@ import org.apache.hadoop.fs.Path;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
-import com.maxmind.db.CHMCache;
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.CityResponse;
@@ -73,6 +73,7 @@ public class AvroGeoipEnricherConverter extends Converter<Schema, Schema, Generi
   private AvroGenericRecordAccessor accessor;
   private boolean removeIpField;
 
+
   @Override
   public Converter<Schema, Schema, GenericRecord, GenericRecord> init(WorkUnitState workUnit) {
 
@@ -104,8 +105,8 @@ public class AvroGeoipEnricherConverter extends Converter<Schema, Schema, Generi
       Path path = new Path(maxmindDatabasePath);
       FileSystem fs = path.getFileSystem(HadoopUtils.newConfiguration());
 
-      reader = new DatabaseReader.Builder(fs.open(path)).withCache(new CHMCache()).build();
-
+      reader = new DatabaseReader.Builder(fs.open(path)).build();
+      fs.close();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -178,27 +179,22 @@ public class AvroGeoipEnricherConverter extends Converter<Schema, Schema, Generi
 
   private void enrichWithGeoip(String ipAddress, GenericRecord record) {
     try {
-      if (ipAddress.isEmpty()) {
-        return;
-      }
-
       InetAddress inetAddress = InetAddress.getByName(ipAddress);
       CityResponse response = reader.city(inetAddress);
-      record.put(CITY_FIELD_NAME,response.getCity() == null ? null: response.getCity().getName());
-      record.put(COUNTRY_FIELD_NAME,response.getCountry() == null ? null: response.getCountry().getName());
-      record.put(COUNTRY_CODE_NAME, response.getCountry() == null ? null: response.getCountry().getIsoCode());
+      record.put(CITY_FIELD_NAME, response.getCity() == null ? null : response.getCity().getName());
+      record.put(COUNTRY_FIELD_NAME, response.getCountry() == null ? null : response.getCountry().getName());
+      record.put(COUNTRY_CODE_NAME, response.getCountry() == null ? null : response.getCountry().getIsoCode());
       if (response.getSubdivisions().size() > 0) {
         record.put(SUBDIVISION_FIELD_NAME, new Utf8(response.getSubdivisions().get(0).getIsoCode()));
       }
-
-    } catch (GeoIp2Exception e) {
+    } catch (GeoIp2Exception| UnknownHostException e) {
       record.put(CITY_FIELD_NAME, null);
       record.put(COUNTRY_FIELD_NAME, null);
       record.put(COUNTRY_CODE_NAME, null);
       record.put(SUBDIVISION_FIELD_NAME, null);
     } catch (IOException e) {
-      e.printStackTrace();
-    };
+      throw new RuntimeException(e);
+    }
   }
 
   private GenericRecord copyRecords (GenericRecord record, Schema outputSchema, Iterator<String> levels)
@@ -208,7 +204,11 @@ public class AvroGeoipEnricherConverter extends Converter<Schema, Schema, Generi
     GenericRecord outputRecord = new GenericData.Record(outputSchema);
 
     if (!levels.hasNext()) {
-      enrichWithGeoip(AvroUtils.getFieldValue(record, level).get().toString(), outputRecord);
+      if (AvroUtils.getFieldValue(record, level).isPresent()) {
+        enrichWithGeoip(AvroUtils.getFieldValue(record, level).get().toString(), outputRecord);
+      }else {
+        enrichWithGeoip(null, outputRecord);
+      }
     }
     for (Field field : outputSchema.getFields()) {
       if (field.name().equals(level) && levels.hasNext()) {
@@ -235,4 +235,11 @@ public class AvroGeoipEnricherConverter extends Converter<Schema, Schema, Generi
 
     return new SingleRecordIterable<>(record);
   }
+
+  @Override
+  public void close()
+      throws IOException {
+    this.reader.close();
+  }
+
 }
