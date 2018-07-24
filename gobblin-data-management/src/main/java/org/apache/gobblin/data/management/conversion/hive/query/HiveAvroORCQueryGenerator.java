@@ -24,9 +24,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
-import lombok.ToString;
-import lombok.extern.slf4j.Slf4j;
-
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.commons.lang3.StringUtils;
@@ -53,6 +50,9 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
 
 import org.apache.gobblin.configuration.State;
 import org.apache.gobblin.data.management.conversion.hive.entities.QueryBasedHivePublishEntity;
@@ -647,6 +647,7 @@ public class HiveAvroORCQueryGenerator {
       Optional<Boolean> optionalOverwriteTable,
       Optional<Boolean> optionalCreateIfNotExists,
       boolean isEvolutionEnabled,
+      boolean isUseFlattenedSource,
       Optional<Table> destinationTableMeta,
       Optional<Integer> rowLimit) {
     Preconditions.checkNotNull(inputAvroSchema);
@@ -717,7 +718,7 @@ public class HiveAvroORCQueryGenerator {
       for (Schema.Field field : fieldList) {
         String flattenSource = field.getProp("flatten_source");
         String colName;
-        if (StringUtils.isNotBlank(flattenSource)) {
+        if (isUseFlattenedSource && StringUtils.isNotBlank(flattenSource)) {
           colName = flattenSource;
         } else {
           colName = field.name();
@@ -738,7 +739,7 @@ public class HiveAvroORCQueryGenerator {
       List<FieldSchema> fieldList = destinationTableMeta.get().getSd().getCols();
       for (FieldSchema field : fieldList) {
         String colName = StringUtils.EMPTY;
-        if (field.isSetComment() && field.getComment().startsWith("from flatten_source ")) {
+        if (isUseFlattenedSource && field.isSetComment() && field.getComment().startsWith("from flatten_source ")) {
           // Retrieve from column (flatten_source) from comment
           colName = field.getComment().replaceAll("from flatten_source ", "").trim();
         } else {
@@ -747,7 +748,7 @@ public class HiveAvroORCQueryGenerator {
           for (Schema.Field evolvedField : evolvedFieldList) {
             if (evolvedField.name().equalsIgnoreCase(field.getName())) {
               String flattenSource = evolvedField.getProp("flatten_source");
-              if (StringUtils.isNotBlank(flattenSource)) {
+              if (isUseFlattenedSource && StringUtils.isNotBlank(flattenSource)) {
                 colName = flattenSource;
               } else {
                 colName = evolvedField.name();
