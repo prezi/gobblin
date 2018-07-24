@@ -20,11 +20,12 @@ package org.apache.gobblin.data.management.conversion.hive.entities;
 import java.util.ArrayList;
 import java.util.Properties;
 
-import org.apache.gobblin.data.management.copy.hive.HiveDataset;
 import org.apache.hadoop.hive.ql.metadata.Table;
 
 import com.google.common.base.Optional;
 import com.typesafe.config.Config;
+
+import org.apache.gobblin.data.management.copy.hive.HiveDataset;
 
 
 /**
@@ -34,7 +35,7 @@ public class TableLikeStageableTableMetadata extends StageableTableMetadata {
 
   public TableLikeStageableTableMetadata(Table referenceTable, String destinationDB, String destinationTableName, String targetDataPath) {
     super(destinationTableName, destinationTableName + "_STAGING", destinationDB, targetDataPath,
-        getTableProperties(referenceTable), new ArrayList<>(), Optional.of(referenceTable.getNumBuckets()), new Properties(), false, Optional.absent(),
+        getTableProperties(referenceTable), new ArrayList<>(), Optional.of(referenceTable.getNumBuckets()), new Properties(), false, true, Optional.absent(),
         new ArrayList<>());
   }
 
@@ -44,7 +45,7 @@ public class TableLikeStageableTableMetadata extends StageableTableMetadata {
         HiveDataset.resolveTemplate(config.getString(StageableTableMetadata.DESTINATION_DB_KEY), referenceTable),
         HiveDataset.resolveTemplate(config.getString(DESTINATION_DATA_PATH_KEY), referenceTable),
         getTableProperties(referenceTable), new ArrayList<>(), Optional.of(referenceTable.getNumBuckets()),
-        new Properties(), false, Optional.absent(), new ArrayList<>());
+        new Properties(), false, true, Optional.absent(), new ArrayList<>());
   }
 
   private static Properties getTableProperties(Table table) {

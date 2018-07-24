@@ -20,8 +20,6 @@ package org.apache.gobblin.data.management.conversion.hive.entities;
 import java.util.List;
 import java.util.Properties;
 
-import org.apache.gobblin.data.management.copy.hive.HiveDataset;
-import org.apache.gobblin.util.ConfigUtils;
 import org.apache.hadoop.hive.ql.metadata.Table;
 
 import com.google.common.base.Optional;
@@ -31,6 +29,9 @@ import com.typesafe.config.Config;
 import javax.annotation.Nullable;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+
+import org.apache.gobblin.data.management.copy.hive.HiveDataset;
+import org.apache.gobblin.util.ConfigUtils;
 
 
 /**
@@ -50,6 +51,7 @@ public class StageableTableMetadata {
   public static final String CLUSTER_BY_KEY = "clusterByList";
   public static final String NUM_BUCKETS_KEY = "numBuckets";
   public static final String EVOLUTION_ENABLED = "evolution.enabled";
+  public static final String USE_FLATTENED_SOURCE_ENABLED = "flattenedSource.enabled";
   public static final String ROW_LIMIT_KEY = "rowLimit";
   public static final String HIVE_VERSION_KEY = "hiveVersion";
   public static final String HIVE_RUNTIME_PROPERTIES_LIST_KEY = "hiveRuntimeProperties";
@@ -109,6 +111,7 @@ public class StageableTableMetadata {
   private final Optional<Integer> numBuckets;
   private final Properties hiveRuntimeProperties;
   private final boolean evolutionEnabled;
+  private final boolean useFlattenedSourceEnabled;
   private final Optional<Integer> rowLimit;
   private final List<String> sourceDataPathIdentifier;
 
@@ -136,6 +139,7 @@ public class StageableTableMetadata {
     this.hiveRuntimeProperties =
         convertKeyValueListToProperties(ConfigUtils.getStringList(config, HIVE_RUNTIME_PROPERTIES_LIST_KEY));
     this.evolutionEnabled = ConfigUtils.getBoolean(config, EVOLUTION_ENABLED, false);
+    this.useFlattenedSourceEnabled = ConfigUtils.getBoolean(config, USE_FLATTENED_SOURCE_ENABLED, true);
     this.rowLimit = Optional.fromNullable(ConfigUtils.getInt(config, ROW_LIMIT_KEY, null));
     this.sourceDataPathIdentifier = ConfigUtils.getStringList(config, SOURCE_DATA_PATH_IDENTIFIER_KEY);
   }

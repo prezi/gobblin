@@ -220,6 +220,7 @@ public abstract class AbstractAvroToOrcConverter extends Converter<Schema, Schem
     String orcDataLocation = getOrcDataLocation();
     String orcStagingDataLocation = getOrcStagingDataLocation(orcStagingTableName);
     boolean isEvolutionEnabled = getConversionConfig().isEvolutionEnabled();
+    boolean isUseFlattenedSourceEnabled = getConversionConfig().isUseFlattenedSourceEnabled();
     Pair<Optional<Table>, Optional<List<Partition>>> destinationMeta = HiveConverterUtils.getDestinationTableMeta(orcTableDatabase,
         orcTableName, workUnit.getProperties());
     Optional<Table> destinationTableMeta = destinationMeta.getLeft();
@@ -375,6 +376,7 @@ public abstract class AbstractAvroToOrcConverter extends Converter<Schema, Schem
                 Optional.<Boolean>absent(),
                 Optional.<Boolean>absent(),
                 isEvolutionEnabled,
+                isUseFlattenedSourceEnabled,
                 destinationTableMeta,
                 rowLimit);
     conversionEntity.getQueries().add(insertInORCStagingTableDML);
