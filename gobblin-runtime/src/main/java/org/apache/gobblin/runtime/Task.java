@@ -44,7 +44,6 @@ import com.google.common.io.Closer;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 
-import javax.annotation.Nullable;
 import lombok.NoArgsConstructor;
 
 import org.apache.gobblin.Constructs;
@@ -358,14 +357,19 @@ public class Task implements TaskIFace {
     this.forks.clear();
     try {
 
-      if (this.taskState.getPropAsBoolean(ConfigurationKeys.TASK_SYNCHRONOUS_EXECUTION_MODEL_KEY,
-          ConfigurationKeys.DEFAULT_TASK_SYNCHRONOUS_EXECUTION_MODEL)) {
-        LOG.warn("Synchronous task execution model is deprecated. Please consider using stream model.");
-        runSynchronousModel();
+      if (!this.taskState.getPropAsBoolean(ConfigurationKeys.WORK_UNIT_IS_EMPTY, false)) {
+
+        if (this.taskState.getPropAsBoolean(ConfigurationKeys.TASK_SYNCHRONOUS_EXECUTION_MODEL_KEY,
+            ConfigurationKeys.DEFAULT_TASK_SYNCHRONOUS_EXECUTION_MODEL)) {
+          LOG.warn("Synchronous task execution model is deprecated. Please consider using stream model.");
+          runSynchronousModel();
+        } else {
+          new StreamModelTaskRunner(this, this.taskState, this.closer, this.taskContext, this.extractor, this.converter,
+              this.recordStreamProcessors, this.rowChecker, this.taskExecutor, this.taskMode, this.shutdownRequested,
+              this.watermarkTracker, this.watermarkManager, this.watermarkStorage, this.forks, this.watermarkingStrategy).run();
+        }
       } else {
-        new StreamModelTaskRunner(this, this.taskState, this.closer, this.taskContext, this.extractor,
-            this.converter, this.recordStreamProcessors, this.rowChecker, this.taskExecutor, this.taskMode, this.shutdownRequested,
-            this.watermarkTracker, this.watermarkManager, this.watermarkStorage, this.forks, this.watermarkingStrategy).run();
+        LOG.info("Task was created from empty work unit and skipping run...");
       }
 
       LOG.info("Extracted " + this.recordsPulled + " data records");

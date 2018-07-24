@@ -41,6 +41,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import org.apache.gobblin.annotation.Alias;
+import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.WorkUnitState;
 import org.apache.gobblin.kafka.client.ByteArrayBasedKafkaRecord;
 import org.apache.gobblin.metrics.kafka.KafkaSchemaRegistry;
@@ -118,12 +119,15 @@ public class KafkaDeserializerExtractor extends KafkaExtractor<Object, Object> {
 
       LOG.info("Getting schema for {}. Gap: {} HighWaterMark: {}", this.topicName, this.lowWatermark.getGap(this.highWatermark));
       //If HighWatermark equals LowWatermark that might mean the workunit is an empty workunit
-      if (this.lowWatermark.getGap(this.highWatermark) == 0) {
-        LOG.info("Not getting schema for {} as the gap between high and low watermark is 0", this.topicName);
-        return null;
+      if (this.workUnitState.getPropAsBoolean(ConfigurationKeys.WORK_UNIT_IS_EMPTY, false)) {
+        LOG.info("Not getting schema for {} as workunit is empty", this.topicName);
+        //Returning previous schema from state if exists
+        return this.workUnitState.getPreviousTableState().getProp(ConfigurationKeys.EXTRACT_SCHEMA);
+
       }
       return this.kafkaSchemaRegistry.getLatestSchemaByTopic(this.topicName);
     } catch (SchemaRegistryException e) {
+      LOG.error("Error getting schema for {}", this.topicName);
       throw new RuntimeException(e);
     }
   }
