@@ -18,6 +18,7 @@
 package org.apache.gobblin.source.extractor.extract.kafka;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Properties;
 
 import org.apache.avro.Schema;
@@ -41,6 +42,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import org.apache.gobblin.annotation.Alias;
+import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.WorkUnitState;
 import org.apache.gobblin.kafka.client.ByteArrayBasedKafkaRecord;
 import org.apache.gobblin.metrics.kafka.KafkaSchemaRegistry;
@@ -105,8 +107,14 @@ public class KafkaDeserializerExtractor extends KafkaExtractor<Object, Object> {
 
   @Override
   protected Object decodeRecord(ByteArrayBasedKafkaRecord messageAndOffset) throws IOException {
-    Object deserialized = kafkaDeserializer.deserialize(this.topicName, messageAndOffset.getMessageBytes());
-
+    Object deserialized;
+    try {
+      deserialized = kafkaDeserializer.deserialize(this.topicName, messageAndOffset.getMessageBytes());
+    } catch (Exception e) {
+      String encodedMessage = Base64.getEncoder().encodeToString(messageAndOffset.getMessageBytes());
+      LOG.error("Error decoding message: "+ encodedMessage+"in Topic: "+this.topicName+" at offset "+Long.toString(messageAndOffset.getOffset()));
+      throw e;
+    }
     // For Confluent's Schema Registry the read schema is the latest registered schema to support schema evolution
     return (this.latestSchema == null) ? deserialized
         : AvroUtils.convertRecordSchema((GenericRecord) deserialized, this.latestSchema);
@@ -115,15 +123,16 @@ public class KafkaDeserializerExtractor extends KafkaExtractor<Object, Object> {
   @Override
   public Object getSchema() {
     try {
-
       LOG.info("Getting schema for {}. Gap: {} HighWaterMark: {}", this.topicName, this.lowWatermark.getGap(this.highWatermark));
       //If HighWatermark equals LowWatermark that might mean the workunit is an empty workunit
-      if (this.lowWatermark.getGap(this.highWatermark) == 0) {
-        LOG.info("Not getting schema for {} as the gap between high and low watermark is 0", this.topicName);
-        return null;
+      if (this.workUnitState.getPropAsBoolean(ConfigurationKeys.WORK_UNIT_IS_EMPTY, false)) {
+        LOG.info("Not getting schema for {} as workunit is empty", this.topicName);
+        //Returning previous schema from state if exists
+        return this.workUnitState.getPreviousTableState().getProp(ConfigurationKeys.EXTRACT_SCHEMA);
       }
       return this.kafkaSchemaRegistry.getLatestSchemaByTopic(this.topicName);
     } catch (SchemaRegistryException e) {
+      LOG.error("Error getting schema for {}", this.topicName);
       throw new RuntimeException(e);
     }
   }
