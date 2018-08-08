@@ -21,7 +21,6 @@ dependencies {
   compile project(':gobblin-modules:gobblin-compliance')
   compile project(':gobblin-modules:gobblin-crypto')
   compile project(':gobblin-modules:gobblin-crypto-provider')
-  compile project(':gobblin-modules:gobblin-kafka-09')
   compile project(':gobblin-modules:gobblin-kafka-08')
   compile project(':gobblin-modules:google-ingestion')
   compile project(':gobblin-modules:gobblin-json')
