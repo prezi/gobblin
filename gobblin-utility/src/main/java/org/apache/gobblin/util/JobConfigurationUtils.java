@@ -79,7 +79,7 @@ public class JobConfigurationUtils {
   public static void putConfigurationIntoProperties(Configuration configuration, Properties properties) {
     for (Iterator<Entry<String, String>> it = configuration.iterator(); it.hasNext();) {
       Entry<String, String> entry = it.next();
-      properties.put(entry.getKey(), entry.getValue());
+      properties.computeIfAbsent(entry.getKey(), k -> entry.getValue());
     }
   }
 
