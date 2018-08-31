@@ -17,15 +17,9 @@
 
 package org.apache.gobblin.source.extractor.extract.kafka;
 
-import io.confluent.kafka.serializers.KafkaAvroDeserializer;
-import io.confluent.kafka.serializers.KafkaJsonDeserializer;
-
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Properties;
-
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -33,20 +27,28 @@ import org.apache.commons.lang3.reflect.ConstructorUtils;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Enums;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 
+import io.confluent.kafka.serializers.KafkaAvroDeserializer;
+import io.confluent.kafka.serializers.KafkaJsonDeserializer;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
 import org.apache.gobblin.annotation.Alias;
+import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.WorkUnitState;
 import org.apache.gobblin.kafka.client.ByteArrayBasedKafkaRecord;
 import org.apache.gobblin.metrics.kafka.KafkaSchemaRegistry;
 import org.apache.gobblin.metrics.kafka.SchemaRegistryException;
 import org.apache.gobblin.util.AvroUtils;
 import org.apache.gobblin.util.PropertiesUtils;
-
 
 /**
  * <p>
@@ -72,6 +74,7 @@ import org.apache.gobblin.util.PropertiesUtils;
 @Getter(AccessLevel.PACKAGE)
 @Alias(value = "DESERIALIZER")
 public class KafkaDeserializerExtractor extends KafkaExtractor<Object, Object> {
+  private static final Logger LOG = LoggerFactory.getLogger(KafkaDeserializerExtractor.class);
 
   public static final String KAFKA_DESERIALIZER_TYPE = "kafka.deserializer.type";
 
@@ -104,8 +107,14 @@ public class KafkaDeserializerExtractor extends KafkaExtractor<Object, Object> {
 
   @Override
   protected Object decodeRecord(ByteArrayBasedKafkaRecord messageAndOffset) throws IOException {
-    Object deserialized = kafkaDeserializer.deserialize(this.topicName, messageAndOffset.getMessageBytes());
-
+    Object deserialized;
+    try {
+      deserialized = kafkaDeserializer.deserialize(this.topicName, messageAndOffset.getMessageBytes());
+    } catch (Exception e) {
+      String encodedMessage = Base64.getEncoder().encodeToString(messageAndOffset.getMessageBytes());
+      LOG.error("Error decoding message: "+ encodedMessage+"in Topic: "+this.topicName+" at offset "+Long.toString(messageAndOffset.getOffset()));
+      throw e;
+    }
     // For Confluent's Schema Registry the read schema is the latest registered schema to support schema evolution
     return (this.latestSchema == null) ? deserialized
         : AvroUtils.convertRecordSchema((GenericRecord) deserialized, this.latestSchema);
@@ -114,8 +123,16 @@ public class KafkaDeserializerExtractor extends KafkaExtractor<Object, Object> {
   @Override
   public Object getSchema() {
     try {
+      LOG.info("Getting schema for {}. Gap: {} HighWaterMark: {}", this.topicName, this.lowWatermark.getGap(this.highWatermark));
+      //If HighWatermark equals LowWatermark that might mean the workunit is an empty workunit
+      if (this.workUnitState.getPropAsBoolean(ConfigurationKeys.WORK_UNIT_IS_EMPTY, false)) {
+        LOG.info("Not getting schema for {} as workunit is empty", this.topicName);
+        //Returning previous schema from state if exists
+        return this.workUnitState.getPreviousTableState().getProp(ConfigurationKeys.EXTRACT_SCHEMA);
+      }
       return this.kafkaSchemaRegistry.getLatestSchemaByTopic(this.topicName);
     } catch (SchemaRegistryException e) {
+      LOG.error("Error getting schema for {}", this.topicName);
       throw new RuntimeException(e);
     }
   }

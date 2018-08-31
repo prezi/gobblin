@@ -88,6 +88,10 @@ public class ConfigurationKeys {
   /**
    * Job scheduler configuration properties.
    */
+  // Job retriggering
+  public static final String JOB_RETRIGGERING_ENABLED = "job.retriggering.enabled";
+  public static final String DEFAULT_JOB_RETRIGGERING_ENABLED = "true";
+
   // Job executor thread pool size
   public static final String JOB_EXECUTOR_THREAD_POOL_SIZE_KEY = "jobexecutor.threadpool.size";
   public static final int DEFAULT_JOB_EXECUTOR_THREAD_POOL_SIZE = 5;
@@ -99,7 +103,7 @@ public class ConfigurationKeys {
   public static final String JOB_CONFIG_FILE_DIR_KEY = "jobconf.dir";
 
   // Path where all job configuration files stored
-  public static final String JOB_CONFIG_FILE_GENERAL_PATH_KEY = "jobconf.fullyQualifiedPath" ;
+  public static final String JOB_CONFIG_FILE_GENERAL_PATH_KEY = "jobconf.fullyQualifiedPath";
   // Job configuration file extensions
   public static final String JOB_CONFIG_FILE_EXTENSIONS_KEY = "jobconf.extensions";
   public static final String DEFAULT_JOB_CONFIG_FILE_EXTENSIONS = "pull,job";
@@ -112,6 +116,9 @@ public class ConfigurationKeys {
   public static final String DEFAULT_HELIX_JOB_TIMEOUT_ENABLED = "false";
   public static final String HELIX_JOB_TIMEOUT_SECONDS = "job.timeout.seconds";
   public static final String DEFAULT_HELIX_JOB_TIMEOUT_SECONDS = "10800";
+
+  public static final String HELIX_TASK_TIMEOUT_SECONDS = "task.timeout.seconds";
+  public static final long DEFAULT_HELIX_TASK_TIMEOUT_SECONDS = 60 * 60;
 
   /**
    * Task executor and state tracker configuration properties.
@@ -171,6 +178,7 @@ public class ConfigurationKeys {
   public static final String WORK_UNIT_RETRY_ENABLED_KEY = "workunit.retry.enabled";
   public static final String WORK_UNIT_CREATION_TIME_IN_MILLIS = "workunit.creation.time.in.millis";
   public static final String WORK_UNIT_CREATION_AND_RUN_INTERVAL = "workunit.creation.and.run.interval";
+  public static final String WORK_UNIT_ENABLE_TRACKING_LOGS = "workunit.enableTrackingLogs";
 
   public static final String JOB_RUN_ONCE_KEY = "job.runonce";
   public static final String JOB_DISABLED_KEY = "job.disabled";
@@ -201,12 +209,13 @@ public class ConfigurationKeys {
   public static final long DEFAULT_QUEUED_TASK_TIME_MAX_AGE = TimeUnit.HOURS.toMillis(1);
 
   /** Optional, for user to specified which template to use, inside .job file */
-  public static final String JOB_TEMPLATE_PATH = "job.template" ;
+  public static final String JOB_TEMPLATE_PATH = "job.template";
 
   /**
    * Configuration property used only for job configuration file's tempalte, inside .template file
    */
   public static final String REQUIRED_ATRRIBUTES_LIST = "gobblin.template.required_attributes";
+  public static final String JOB_DEPENDENCIES = "dependencies";
 
   /**
    * Configuration for emitting job events
@@ -242,6 +251,7 @@ public class ConfigurationKeys {
    */
   // This property is used to specify the URN of a dataset a job or WorkUnit extracts data for
   public static final String DATASET_URN_KEY = "dataset.urn";
+  public static final String GLOBAL_WATERMARK_DATASET_URN = "__globalDatasetWatermark";
   public static final String DEFAULT_DATASET_URN = "";
 
   /**
@@ -258,6 +268,7 @@ public class ConfigurationKeys {
   public static final String WORK_UNIT_STATE_RUNTIME_HIGH_WATER_MARK = "workunit.state.runtime.high.water.mark";
   public static final String WORK_UNIT_STATE_ACTUAL_HIGH_WATER_MARK_KEY = "workunit.state.actual.high.water.mark";
   public static final String WORK_UNIT_DATE_PARTITION_KEY = "workunit.source.date.partition";
+  public static final String WORK_UNIT_IS_EMPTY = "workunit.isempty";
 
   /**
    * Task execution properties.
@@ -473,6 +484,8 @@ public class ConfigurationKeys {
   public static final String SOURCE_MAX_NUMBER_OF_PARTITIONS = "source.max.number.of.partitions";
   public static final String SOURCE_SKIP_FIRST_RECORD = "source.skip.first.record";
   public static final String SOURCE_COLUMN_NAME_CASE = "source.column.name.case";
+  public static final String SOURCE_EARLY_STOP_ENABLED = "source.earlyStop.enabled";
+  public static final boolean DEFAULT_SOURCE_EARLY_STOP_ENABLED = false;
 
   /**
    * Configuration properties used by the QueryBasedExtractor.
@@ -513,6 +526,13 @@ public class ConfigurationKeys {
 
   public static final String ENABLE_DELIMITED_IDENTIFIER = "enable.delimited.identifier";
   public static final boolean DEFAULT_ENABLE_DELIMITED_IDENTIFIER = false;
+
+  public static final String SQL_SERVER_CONNECTION_PARAMETERS = "source.querybased.sqlserver.connectionParameters";
+
+  /**
+   * Configuration properties used by the CopySource.
+   */
+  public static final String COPY_SOURCE_FILESET_WU_GENERATOR_CLASS = "copy.source.fileset.wu.generator.class";
 
   /**
    * Configuration properties used by the FileBasedExtractor
@@ -558,6 +578,7 @@ public class ConfigurationKeys {
   public static final String SOURCE_CONN_HOST_NAME = SOURCE_CONN_PREFIX + "host";
   public static final String SOURCE_CONN_VERSION = SOURCE_CONN_PREFIX + "version";
   public static final String SOURCE_CONN_TIMEOUT = SOURCE_CONN_PREFIX + "timeout";
+  public static final String SOURCE_CONN_PROPERTIES = SOURCE_CONN_PREFIX + "properties";
   public static final String SOURCE_CONN_REST_URL = SOURCE_CONN_PREFIX + "rest.url";
   public static final String SOURCE_CONN_USE_PROXY_URL = SOURCE_CONN_PREFIX + "use.proxy.url";
   public static final String SOURCE_CONN_USE_PROXY_PORT = SOURCE_CONN_PREFIX + "use.proxy.port";
@@ -583,7 +604,6 @@ public class ConfigurationKeys {
   public static final String DEFAULT_SOURCE_QUERYBASED_IS_METADATA_COLUMN_CHECK_ENABLED = "true";
   public static final String DEFAULT_COLUMN_NAME_CASE = "NOCHANGE";
   public static final int DEFAULT_SOURCE_QUERYBASED_JDBC_RESULTSET_FETCH_SIZE = 1000;
-
   public static final String FILEBASED_REPORT_STATUS_ON_COUNT = "filebased.report.status.on.count";
   public static final int DEFAULT_FILEBASED_REPORT_STATUS_ON_COUNT = 10000;
   public static final String DEFAULT_SOURCE_TIMEZONE = PST_TIMEZONE_NAME;
@@ -789,6 +809,8 @@ public class ConfigurationKeys {
   public static final String ENCRYPT_KEY_LOC = "encrypt.key.loc";
   public static final String ENCRYPT_USE_STRONG_ENCRYPTOR = "encrypt.use.strong.encryptor";
   public static final boolean DEFAULT_ENCRYPT_USE_STRONG_ENCRYPTOR = false;
+  public static final String NUMBER_OF_ENCRYPT_KEYS = "num.encrypt.keys";
+  public static final int DEFAULT_NUMBER_OF_MASTER_PASSWORDS = 2;
 
   /**
    * Proxy Filesystem operation properties.
@@ -886,16 +908,11 @@ public class ConfigurationKeys {
   public static final String CONFIG_BASED_PREFIX = "gobblin.configBased";
 
   /**
-   * Configuration related to the git flow config monitoring service
+   * Configuration related to the Git based monitoring service
    */
-  public static final String GIT_CONFIG_MONITOR_PREFIX = "gitConfigMonitor.";
-  public static final String GIT_CONFIG_MONITOR_REPO_URI = GIT_CONFIG_MONITOR_PREFIX + "repositoryUri";
-  public static final String GIT_CONFIG_MONITOR_REPO_DIR = GIT_CONFIG_MONITOR_PREFIX + "repositoryDirectory";
-  public static final String DEFAULT_GIT_CONFIG_MONITOR_REPO_DIR = "git-flow-config";
-  public static final String GIT_CONFIG_MONITOR_CONFIG_DIR = GIT_CONFIG_MONITOR_PREFIX + "configDirectory";
-  public static final String DEFAULT_GIT_CONFIG_MONITOR_CONFIG_DIR = "gobblin-config";
-  public static final String GIT_CONFIG_MONITOR_POLLING_INTERVAL = GIT_CONFIG_MONITOR_PREFIX + "pollingInterval";
-  public static final String GIT_CONFIG_MONITOR_BRANCH_NAME = GIT_CONFIG_MONITOR_PREFIX + "branchName";
-  public static final String DEFAULT_GIT_CONFIG_MONITOR_BRANCH_NAME = "master";
-  public static final int DEFAULT_GIT_CONFIG_MONITOR_POLLING_INTERVAL = 60;
+  public static final String GIT_MONITOR_REPO_URI = "repositoryUri";
+  public static final String GIT_MONITOR_REPO_DIR = "repositoryDirectory";
+  public static final String GIT_MONITOR_CONFIG_BASE_DIR = "configBaseDirectory";
+  public static final String GIT_MONITOR_POLLING_INTERVAL = "pollingInterval";
+  public static final String GIT_MONITOR_BRANCH_NAME = "branchName";
 }

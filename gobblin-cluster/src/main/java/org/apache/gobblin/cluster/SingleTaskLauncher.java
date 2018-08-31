@@ -23,13 +23,14 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.lang3.text.StrTokenizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.typesafe.config.Config;
+
 import org.apache.gobblin.util.GobblinProcessBuilder;
 import org.apache.gobblin.util.SystemPropertiesWrapper;
-
-import com.typesafe.config.Config;
 
 import static org.apache.gobblin.cluster.SingleTaskRunnerMainOptions.CLUSTER_CONFIG_FILE_PATH;
 import static org.apache.gobblin.cluster.SingleTaskRunnerMainOptions.JOB_ID;
@@ -60,7 +61,7 @@ class SingleTaskLauncher {
 
     // The -cp parameter list can be very long.
     final String completeCmdLine = String.join(" ", command);
-    logger.debug("cmd line:\n{}", completeCmdLine);
+    logger.info("cmd line:\n{}", completeCmdLine);
 
     final Process taskProcess = this.processBuilder.start(command);
 
@@ -88,9 +89,12 @@ class SingleTaskLauncher {
     }
 
     private void addJavaOptions() {
-      if (sysConfig.hasPath(GobblinClusterConfigurationKeys.TASK_JAVA_OPTIONS)) {
-        final String javaOptions = sysConfig.getString(GobblinClusterConfigurationKeys.TASK_JAVA_OPTIONS);
-        this.cmd.add(javaOptions);
+      if (sysConfig.hasPath(GobblinClusterConfigurationKeys.TASK_JVM_OPTIONS)) {
+        final String taskJvmOptions = sysConfig.getString(GobblinClusterConfigurationKeys.TASK_JVM_OPTIONS);
+        StrTokenizer tokenizer = new StrTokenizer(taskJvmOptions, ' ', '"');
+        while(tokenizer.hasNext()) {
+          this.cmd.add(tokenizer.next());
+        }
       }
     }
 

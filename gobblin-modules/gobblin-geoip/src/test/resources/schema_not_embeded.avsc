@@ -1,0 +1,17 @@
+{
+  "type": "record",
+  "name": "SelectObject",
+  "namespace": "com.prezi.analytics",
+  "doc": "",
+  "fields": [{
+        "name": "ip_address",
+        "type": ["null", "string"],
+        "doc": "Ip address of the user",
+        "generated_by": "ServerSide"
+      }, {
+        "name": "user_id",
+        "type": ["null", "int"],
+        "doc": "Id of the user",
+        "generated_by": "ServerSide"
+  }]
+}

@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 
+import org.apache.gobblin.salesforce.SalesforceConfigurationKeys;
 import org.apache.http.HttpEntity;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.methods.HttpGet;
@@ -98,7 +99,7 @@ public class SalesforceExtractor extends RestApiExtractor {
   public static final String SALESFORCE_TIMESTAMP_FORMAT = "yyyy-MM-dd'T'HH:mm:ss'.000Z'";
   private static final String SALESFORCE_DATE_FORMAT = "yyyy-MM-dd";
   private static final String SALESFORCE_HOUR_FORMAT = "HH";
-  private static final String SALESFORCE_SOAP_AUTH_SERVICE = "/services/Soap/u";
+  private static final String SALESFORCE_SOAP_SERVICE = "/services/Soap/u";
   private static final Gson GSON = new Gson();
   private static final int MAX_PK_CHUNKING_SIZE = 250000;
   private static final int MIN_PK_CHUNKING_SIZE = 100000;
@@ -110,6 +111,11 @@ public class SalesforceExtractor extends RestApiExtractor {
   private static final int PK_CHUNKING_MAX_PARTITIONS_LIMIT = 3;
   private static final String FETCH_RETRY_LIMIT_KEY = "salesforce.fetchRetryLimit";
   private static final int DEFAULT_FETCH_RETRY_LIMIT = 5;
+  private static final String BULK_API_USE_QUERY_ALL = "salesforce.bulkApiUseQueryAll";
+  private static final boolean DEFAULT_BULK_API_USE_QUERY_ALL = false;
+  private static final String PK_CHUNKING_SKIP_COUNT_CHECK = "salesforce.pkChunkingSkipCountCheck";
+  private static final boolean DEFAULT_PK_CHUNKING_SKIP_COUNT_CHECK = false;
+
 
   private boolean pullStatus = true;
   private String nextUrl;
@@ -134,6 +140,9 @@ public class SalesforceExtractor extends RestApiExtractor {
   private final int fetchRetryLimit;
   private final int batchSize;
 
+  private final boolean pkChunkingSkipCountCheck;
+  private final boolean bulkApiUseQueryAll;
+
   public SalesforceExtractor(WorkUnitState state) {
     super(state);
     this.sfConnector = (SalesforceConnector) this.connector;
@@ -154,6 +163,9 @@ public class SalesforceExtractor extends RestApiExtractor {
     this.pkChunkingSize =
         Math.max(MIN_PK_CHUNKING_SIZE,
             Math.min(MAX_PK_CHUNKING_SIZE, state.getPropAsInt(PK_CHUNKING_SIZE_KEY, DEFAULT_PK_CHUNKING_SIZE)));
+
+    this.pkChunkingSkipCountCheck = state.getPropAsBoolean(PK_CHUNKING_SKIP_COUNT_CHECK, DEFAULT_PK_CHUNKING_SKIP_COUNT_CHECK);
+    this.bulkApiUseQueryAll = state.getPropAsBoolean(BULK_API_USE_QUERY_ALL, DEFAULT_BULK_API_USE_QUERY_ALL);
 
     // Get batch size from .pull file
     int tmpBatchSize = state.getPropAsInt(ConfigurationKeys.SOURCE_QUERYBASED_FETCH_SIZE,
@@ -638,10 +650,11 @@ public class SalesforceExtractor extends RestApiExtractor {
     String hostName = this.workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_HOST_NAME);
     String apiVersion = this.workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_VERSION);
     if (Strings.isNullOrEmpty(apiVersion)) {
-      apiVersion = "29.0";
+      // queryAll was introduced in version 39.0, so need to use a higher version when using queryAll with the bulk api
+      apiVersion = this.bulkApiUseQueryAll ? "42.0" : "29.0";
     }
 
-    String soapAuthEndPoint = hostName + SALESFORCE_SOAP_AUTH_SERVICE + "/" + apiVersion;
+    String soapAuthEndPoint = hostName + SALESFORCE_SOAP_SERVICE + "/" + apiVersion;
     try {
       ConnectorConfig partnerConfig = new ConnectorConfig();
       if (super.workUnitState.contains(ConfigurationKeys.SOURCE_CONN_USE_PROXY_URL)
@@ -650,12 +663,29 @@ public class SalesforceExtractor extends RestApiExtractor {
             super.workUnitState.getPropAsInt(ConfigurationKeys.SOURCE_CONN_USE_PROXY_PORT));
       }
 
-      String securityToken = this.workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_SECURITY_TOKEN);
-      String password = PasswordManager.getInstance(this.workUnitState)
-          .readPassword(this.workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_PASSWORD));
-      partnerConfig.setUsername(this.workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_USERNAME));
-      partnerConfig.setPassword(password + securityToken);
+      String accessToken = sfConnector.getAccessToken();
+
+      if (accessToken == null) {
+        boolean isConnectSuccess = sfConnector.connect();
+        if (isConnectSuccess) {
+          accessToken = sfConnector.getAccessToken();
+        }
+      }
+
+      if (accessToken != null) {
+        String serviceEndpoint = sfConnector.getInstanceUrl() + SALESFORCE_SOAP_SERVICE + "/" + apiVersion;
+        partnerConfig.setSessionId(accessToken);
+        partnerConfig.setServiceEndpoint(serviceEndpoint);
+      } else {
+        String securityToken = this.workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_SECURITY_TOKEN);
+        String password = PasswordManager.getInstance(this.workUnitState)
+            .readPassword(this.workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_PASSWORD));
+        partnerConfig.setUsername(this.workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_USERNAME));
+        partnerConfig.setPassword(password + securityToken);
+      }
+
       partnerConfig.setAuthEndpoint(soapAuthEndPoint);
+
       new PartnerConnection(partnerConfig);
       String soapEndpoint = partnerConfig.getServiceEndpoint();
       String restEndpoint = soapEndpoint.substring(0, soapEndpoint.indexOf("Soap/")) + "async/" + apiVersion;
@@ -698,11 +728,11 @@ public class SalesforceExtractor extends RestApiExtractor {
 
       // Set bulk job attributes
       this.bulkJob.setObject(entity);
-      this.bulkJob.setOperation(OperationEnum.query);
+      this.bulkJob.setOperation(this.bulkApiUseQueryAll ? OperationEnum.queryAll : OperationEnum.query);
       this.bulkJob.setConcurrencyMode(ConcurrencyMode.Parallel);
 
       // use pk chunking if pk chunking is configured and the expected record count is larger than the pk chunking size
-      if (this.pkChunking && getExpectedRecordCount() > this.pkChunkingSize) {
+      if (this.pkChunking && (this.pkChunkingSkipCountCheck || getExpectedRecordCount() > this.pkChunkingSize)) {
         log.info("Enabling pk chunking with size {}", this.pkChunkingSize);
         this.bulkConnection.addHeader("Sforce-Enable-PKChunking", "chunkSize=" + this.pkChunkingSize);
         usingPkChunking = true;

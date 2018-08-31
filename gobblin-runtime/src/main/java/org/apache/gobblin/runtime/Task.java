@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.lang3.BooleanUtils;
-import org.apache.gobblin.metrics.event.FailureEventBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -45,7 +44,13 @@ import com.google.common.io.Closer;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 
+import lombok.NoArgsConstructor;
+
 import org.apache.gobblin.Constructs;
+import org.apache.gobblin.broker.EmptyKey;
+import org.apache.gobblin.broker.gobblin_scopes.GobblinScopeTypes;
+import org.apache.gobblin.broker.iface.NotConfiguredException;
+import org.apache.gobblin.broker.iface.SharedResourcesBroker;
 import org.apache.gobblin.commit.SpeculativeAttemptAwareConstruct;
 import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.State;
@@ -60,6 +65,7 @@ import org.apache.gobblin.instrumented.extractor.InstrumentedExtractorBase;
 import org.apache.gobblin.instrumented.extractor.InstrumentedExtractorDecorator;
 import org.apache.gobblin.metrics.MetricContext;
 import org.apache.gobblin.metrics.event.EventSubmitter;
+import org.apache.gobblin.metrics.event.FailureEventBuilder;
 import org.apache.gobblin.metrics.event.TaskEvent;
 import org.apache.gobblin.publisher.DataPublisher;
 import org.apache.gobblin.publisher.SingleTaskDataPublisher;
@@ -77,9 +83,14 @@ import org.apache.gobblin.source.extractor.StreamingExtractor;
 import org.apache.gobblin.state.ConstructState;
 import org.apache.gobblin.stream.RecordEnvelope;
 import org.apache.gobblin.util.ConfigUtils;
-import org.apache.gobblin.writer.*;
-
-import lombok.NoArgsConstructor;
+import org.apache.gobblin.writer.AcknowledgableWatermark;
+import org.apache.gobblin.writer.DataWriter;
+import org.apache.gobblin.writer.FineGrainedWatermarkTracker;
+import org.apache.gobblin.writer.MultiWriterWatermarkManager;
+import org.apache.gobblin.writer.TrackerBasedWatermarkManager;
+import org.apache.gobblin.writer.WatermarkAwareWriter;
+import org.apache.gobblin.writer.WatermarkManager;
+import org.apache.gobblin.writer.WatermarkStorage;
 
 
 /**
@@ -263,6 +274,17 @@ public class Task implements TaskIFace {
     }
   }
 
+  /**
+   * Try to get a {@link ForkThrowableHolder} instance from the given {@link SharedResourcesBroker}
+   */
+  public static ForkThrowableHolder getForkThrowableHolder(SharedResourcesBroker<GobblinScopeTypes> broker) {
+    try {
+      return broker.getSharedResource(new ForkThrowableHolderFactory(), EmptyKey.INSTANCE);
+    } catch (NotConfiguredException e) {
+      LOG.error("Fail to get fork throwable holder instance from broker. Will not track fork exception.", e);
+      throw new RuntimeException(e);
+    }
+  }
 
   public static ExecutionModel getExecutionModel(State state) {
     String mode = state
@@ -334,15 +356,18 @@ public class Task implements TaskIFace {
     // Clear the map so it starts with a fresh set of forks for each run/retry
     this.forks.clear();
     try {
-
-      if (this.taskState.getPropAsBoolean(ConfigurationKeys.TASK_SYNCHRONOUS_EXECUTION_MODEL_KEY,
-          ConfigurationKeys.DEFAULT_TASK_SYNCHRONOUS_EXECUTION_MODEL)) {
-        LOG.warn("Synchronous task execution model is deprecated. Please consider using stream model.");
-        runSynchronousModel();
+      if (!this.taskState.getPropAsBoolean(ConfigurationKeys.WORK_UNIT_IS_EMPTY, false)) {
+        if (this.taskState.getPropAsBoolean(ConfigurationKeys.TASK_SYNCHRONOUS_EXECUTION_MODEL_KEY,
+            ConfigurationKeys.DEFAULT_TASK_SYNCHRONOUS_EXECUTION_MODEL)) {
+          LOG.warn("Synchronous task execution model is deprecated. Please consider using stream model.");
+          runSynchronousModel();
+        } else {
+          new StreamModelTaskRunner(this, this.taskState, this.closer, this.taskContext, this.extractor,
+              this.converter, this.recordStreamProcessors, this.rowChecker, this.taskExecutor, this.taskMode, this.shutdownRequested,
+              this.watermarkTracker, this.watermarkManager, this.watermarkStorage, this.forks, this.watermarkingStrategy).run();
+        }
       } else {
-        new StreamModelTaskRunner(this, this.taskState, this.closer, this.taskContext, this.extractor,
-            this.converter, this.recordStreamProcessors, this.rowChecker, this.taskExecutor, this.taskMode, this.shutdownRequested,
-            this.watermarkTracker, this.watermarkManager, this.watermarkStorage, this.forks, this.watermarkingStrategy).run();
+        LOG.info("Task was created from empty work unit and skipping run...");
       }
 
       LOG.info("Extracted " + this.recordsPulled + " data records");
@@ -881,7 +906,14 @@ public class Task implements TaskIFace {
           this.taskState.setWorkingState(WorkUnitState.WorkingState.SUCCESSFUL);
         }
       } else {
-        failTask(new ForkException("Fork branches " + failedForkIds + " failed for task " + this.taskId));
+        ForkThrowableHolder holder = Task.getForkThrowableHolder(this.taskState.getTaskBroker());
+        LOG.info("Holder for this task {} is {}", this.taskId, holder);
+        if (!holder.isEmpty()) {
+          failTask(holder.getAggregatedException(failedForkIds, this.taskId));
+        } else {
+          // just in case there are some corner cases where Fork throw an exception but doesn't add into holder
+          failTask(new ForkException("Fork branches " + failedForkIds + " failed for task " + this.taskId));
+        }
       }
     } catch (Throwable t) {
       failTask(t);

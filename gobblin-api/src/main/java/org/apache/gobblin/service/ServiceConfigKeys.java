@@ -47,6 +47,11 @@ public class ServiceConfigKeys {
 
   // Flow Compiler Keys
   public static final String GOBBLIN_SERVICE_FLOWCOMPILER_CLASS_KEY = GOBBLIN_SERVICE_PREFIX + "flowCompiler.class";
+
+  // Flow Catalog Keys
+  public static final String GOBBLIN_SERVICE_FLOW_CATALOG_LOCAL_COMMIT = GOBBLIN_SERVICE_PREFIX + "flowCatalog.localCommit";
+  public static final boolean DEFAULT_GOBBLIN_SERVICE_FLOW_CATALOG_LOCAL_COMMIT = true;
+
   /**
    * Directly use canonical class name here to avoid introducing additional dependency here.
    */
@@ -106,4 +111,7 @@ public class ServiceConfigKeys {
   public static final String SERVICE_POLICY_NAME = GOBBLIN_SERVICE_PREFIX + "servicePolicy";
   // Logging
   public static final String GOBBLIN_SERVICE_LOG4J_CONFIGURATION_FILE = "log4j-service.properties";
+  // GAAS Listerning Port
+  public static final String SERVICE_PORT = GOBBLIN_SERVICE_PREFIX + "port";
+  
 }

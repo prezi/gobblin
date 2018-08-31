@@ -1,3 +1,110 @@
+GOBBLIN 0.13.0
+-------------
+
+###Created Date: 27/07/2018
+
+## HIGHLIGHTS 
+
+* Git based FlowGraph monitor in GaaS.
+* GPG encryption support.
+* Base work on multi-hop work in Gobblin-as-a-Service. 
+* More versatile and high available Gobblin Cluster. 
+* Migration to new Helix version and its improved task framework.
+* Database based state-store support along with migration support.
+
+## NEW FEATURES 
+
+* [GaaS] [GOBBLIN-505] Implement a Git-based FlowGraph Monitor
+* [Encryption] [GOBBLIN-521] Add support for encryption in the GPGCodec
+
+## IMPROVEMENTS
+
+* [GaaS] [GOBBLIN-535] Add second hop for distributed job launcher
+* [GaaS] [GOBBLIN-532] Always delete jobSpec no matter if the job is successful or not
+* [GaaS] [GOBBLIN-516] Propagate Accurate Error Message in Construction of CopyRoute
+* [GaaS] [GOBBLIN-495] FlowSpec should be deleted if this is run once flow
+* [GaaS] [GOBBLIN-491] Create a FlowGraph representation for multi-hop support in Gobblin-as-a-Service
+* [GaaS] [GOBBLIN-490] Add planning job execution launcher 
+* [GaaS] [GOBBLIN-458] Refactor flowConfig resource handler to avoid single restli request handled partially on one machine and then forward to another machine. 
+* [GaaS] [GOBBLIN-453] Make the rest port configurable via property file.
+* [Cluster] [GOBBLIN-539] Set expiry time on helix work flow
+* [Cluster] [GOBBLIN-534] Use Helix WorkFlow instead of JobQueue
+* [Cluster] [GOBBLIN-533] Upgrade Helix to 0.8.1
+* [Cluster] [GOBBLIN-510] Decouple JobExecutionLauncher and JobExecutionDriver
+* [Cluster] [GOBBLIN-508] Ensure that in AWSConfigManager the files are extracted within the output directory
+* [Cluster] [GOBBLIN-506] Job tagging support in Gobblin cluster
+* [Cluster] [GOBBLIN-480] Allow job distribution cluster to be separated from cluster manager cluster
+* [Cluster] [GOBBLIN-476] Add helix task timeout
+* [Cluster] [GOBBLIN-455] Yarn launcher does not honor jvmflags and jars arguments
+* [Cluster] [GOBBLIN-452] Logging related Improvement in Gobblin Cluster
+* [Core] [GOBBLIN-537] Dump workunits to logs for debugging
+* [Core] [GOBBLIN-499] Log the job name with the tracking URL for easier debugging
+* [Core] [GOBBLIN-489] Implement PusherFactory
+* [Core] [GOBBLIN-484] Propagate fork exception to task commit
+* [Core] [GOBBLIN-470] Improve MRTask error log to contain Job Url
+* [Core] [GOBBLIN-460] Gobblin will skip all future tasks if the first n tasks complete before the n+1th is scheduled
+* [Core] [GOBBLIN-447] Always mark custom tasks as complete even if they throw exception in run()
+* [State Store] [GOBBLIN-456] Add option to delete job state store
+* [State Store] [GOBBLIN-454] Add retention support to the MysqlDatasetStateStore
+* [State Store] [GOBBLIN-446] Add support for migrating state for all jobs in a job store
+* [State Store] [GOBBLIN-432] Share the DataSource used by the MySQL state stores
+* [Source] [GOBBLIN-520] Allow user customize their own fileSetWorkUnitGenerator
+* [Source] [GOBBLIN-492] Make LoopingDatasetFinderSource easy to embed different Iterator
+* [Source] [GOBBLIN-473] Allow user to configure different lookback time for different datasets
+* [Source] [GOBBLIN-471] DatasetFinderSource should allow skipping datasets
+* [Source] [GOBBLIN-464] Enhance LoopingDatasetFinderSource to support global watermark and per-dataset watermark
+* [Source] [GOBBLIN-448] Add glob pattern blacklist in ConfigurableGlobDatasetFinder
+* [Source] [GOBBLIN-440] SQLServer source uses "source.querybased.schema" as database name
+* [Extractor] [GOBBLIN-536] Allow user to configure connection string properties in mysql extractor
+* [Extractor] [GOBBLIN-483] Allow join operations if metadata check is disabled
+* [Extractor] [GOBBLIN-479] Extract records as String instead of jsonObject 
+* [Converter] [GOBBLIN-98] HiveSerDeConverter. Write to ORC records duplication with queue.capacity=1
+* [Writer] [GOBBLIN-509] Ensure that tar data writer writes within output directory
+* [Writer] [GOBBLIN-494] Allow retrywriter to be disabled
+* [Writer] [GOBBLIN-488] Make `AsyncRequest` aware of records
+* [Retention] [GOBBLIN-469] Add Task for running the DatasetCleaner
+* [Hive-Registration] [GOBBLIN-502] Make HiveMetastoreClient PoolCache's TTL configurable
+* [Kafka] [GOBBLIN-507] Change URL format in KafkaAuditHttpClient to query Kafka audit server.
+* [Kafka] [GOBBLIN-481] Missing Alias Annotation on Class KafkaSimpleJsonExtractor
+* [Kafka] [GOBBLIN-465] Add support for client certificate auth
+* [Kafka] [GOBBLIN-433] Gobblin tries to query schema registry for non existing Kafka partitions
+* [Avro-to-ORC] [GOBBLIN-529] Add missing test dependency to gobblin-data-management
+* [Avro-to-ORC] [GOBBLIN-496] Support nullable unions in AvroUtils.getFieldSchema
+* [Avro-to-ORC] [GOBBLIN-478] Lineage events are not getting emitted during Avro2ORC conversion
+* [Avro-to-ORC] [GOBBLIN-463] Change lineage event for Avro2Orc conversion to have underlying FileSystem as platform
+* [Salesforce] [GOBBLIN-513] Add support for queryAll when using the Salesforce bulk API
+* [Salesforce] [GOBBLIN-486] Change access modifiers for SalesforceWriter to protected to help extend on top of it
+* [Salesforce] [GOBBLIN-466] Reuse same connector for Salesforce dynamic partitioning
+* [Salesforce] [GOBBLIN-436] Salesforce doesn't have default constructor
+* [Salesforce] [GOBBLIN-434] Salesforce connector support refresh token grant
+* [Salesforce] [GOBBLIN-430] Add lineage in SalesforceSource
+* [Salesforce] [GOBBLIN-423] Limit records or bucket counts for dynamic probing
+* [Compaction] [GOBBLIN-445] Add task output directory for staging compaction result
+* [Compaction] [GOBBLIN-412] Compression parameters are not propagated to Hadoop
+* [Hive Registration] [GOBBLIN-485] AvroSchemaManager does not support using schema generated from Hive columns 
+* [Documentation] [GOBBLIN-482] Add http write documentation
+* [Documentation] [GOBBLIN-352] Add example for using gobblin-parquet module
+* [Apache] [GOBBLIN-517] Add missing apache license info
+* [Encryption] [GOBBLIN-459] Support string decryption and arrays of strings
+* [Encryption] [GOBBLIN-444] Add support to rotate master keys for encryption/decryption
+* [Encryption] [GOBBLIN-293] Remove stream materialization in GPGFileDecryptor
+
+## BUGS FIXES
+
+* [Bug] [GOBBLIN-522] Multiple build issues
+* [Bug] [GOBBLIN-514] AvroUtils#parseSchemaFromFile fails when characters are written with Modified UTF-8 encoding
+* [Bug] [GOBBLIN-511] Fix Findbugs warnings in Gobblin Service
+* [Bug] [GOBBLIN-504] HiveMetastoreClientPool has findbugsMain issue due to unprotected static variable initialization
+* [Bug] [GOBBLIN-503] ForkThrowableHolder doesn't aggregate throwable in right condition
+* [Bug] [GOBBLIN-501] Fix NPE thrown from read after EOF of LazyMaterializeDecryptorInputStream
+* [Bug] [GOBBLIN-497] GobblinHelixJobScheduler should not start scheduling before the scheduler service is up
+* [Bug] [GOBBLIN-493] Fix build issue in GithubDataEventTypesPartitioner
+* [Bug] [GOBBLIN-468] Enums don't work in json to avro conversion
+* [Bug] [GOBBLIN-467] Json to avro conversion broken for records within arrays
+* [Bug] [GOBBLIN-461] Disable PasswordManager Tests as they fail often on travis
+* [Bug] [GOBBLIN-451] Fix casting error when exception is thrown in conversion
+* [Bug] [GOBBLIN-435] Fix data publisher created from job broker not closed
+
 GOBBLIN 0.12.0
 -------------
 
@@ -17,10 +124,19 @@ GOBBLIN 0.12.0
 
 ## NEW FEATURES 
 
+* [GaaS] [GOBBLIN-232] Create Azkaban Orchestrator for Gobblin-as-a-Service
+* [GaaS] [GOBBLIN-213] Add scheduler service to GobblinServiceManager
+* [GaaS] [GOBBLIN-3] Implementation of Flow compiler with multiple hops
+* [GaaS] [GOBBLIN-204] Add a service that fetches GaaS flow configs from a git repository
+* [GaaS] [GOBBLIN-292] Add kafka09 support for service and cluster job spec communication
+* [Global Throttling] [GOBBLIN-287] Support service-level throttling quotas
+* [Cluster] [GOBBLIN-390] Allow child process to be launched with log4j options
+* [Cluster] [GOBBLIN-382] Support storing job.state file in mysql state store for standalone cluster
 * [State Store] [GOBBLIN-199] GOBBLIN-56 Add state store entry listing API
 * [State Store] [GOBBLIN-200] GOBBLIN-56 State store dataset cleaner using state store listing API
 * [Extractor] [GOBBLIN-203] Postgresql Extractor
 * [Extractor] [GOBBLIN-238] Implement EnvelopePayloadExtractor and EnvelopePayloadDeserializer
+* [Converter] [GOBBLIN-427] Add decryption converters
 * [Converter] [GOBBLIN-248] Converter for Json to Parquet
 * [Converter] [GOBBLIN-231] Grok to Json Converter
 * [Converter] [GOBBLIN-221] Add Json to Avro converter
@@ -32,23 +148,35 @@ GOBBLIN 0.12.0
 
 ## IMPROVEMENTS
 
-* [GaaS] [GOBBLIN-232] Create Azkaban Orchestrator for Gobblin-as-a-Service
-* [GaaS] [GOBBLIN-213] Add scheduler service to GobblinServiceManager
-* [GaaS] [GOBBLIN-3] Implementation of Flow compiler with multiple hops
+* [GaaS] [GOBBLIN-418] Change Gobblin Service behavior to not call addSpec for preexisting specs on FlowCatalog start up
+* [GaaS] [GOBBLIN-415] Check for the value of configuration key flow.runImmediately in Job config.
+* [GaaS] [GOBBLIN-406] GaaS Delete job state on spec delete
+* [GaaS] [GOBBLIN-404] Disable immediate execution of all flows in FlowCatalog on Gobblin Service restart
 * [GaaS] [GOBBLIN-280] Add new SpecCompiler compatible constructor to AzkabanSpecExecutor
 * [GaaS] [GOBBLIN-299] Add deletion support to Azkaban Orchestrator
 * [GaaS] [GOBBLIN-262] Make multihopcompiler use the first user specified template
-* [GaaS] [GOBBLIN-204] Add a service that fetches GaaS flow configs from a git repository
-* [GaaS] [GOBBLIN-292] Add kafka09 support for service and cluster job spec communication
 * [GaaS] [GOBBLIN-281] Fix logging in gobblin-service
 * [GaaS] [GOBBLIN-273] Add failure monitoring
 * [GaaS] [GOBBLIN-304] Remove versioning from Gobblin-as-a-Service flow specs
+* [Global Throttling] [GOBBLIN-424] Gobblin job broker does not get closed if job fails
 * [Global Throttling] [GOBBLIN-334] Implement SharedResourceFactory for LineageInfo
-* [Global Throttling] [GOBBLIN-287] Support service-level throttling quotas
 * [Global Throttling] [GOBBLIN-264] Add a SharedResourceFactory for creating shared DataPublishers
 * [Global Throttling] [GOBBLIN-251] Having UpdateProviderFactory able to instantiate FileSystem with URI
 * [Global Throtlting] [GOBBLIN-236] Add a ControlMessage injector as a RecordStreamProcessor
 * [Global Throttling] [GOBBLIN-24] Allow disabling global throttling. Fix a race condition in BatchedPer…
+* [Cluster] [GOBBLIN-429] Pass jvm options to child process for task isolation
+* [Cluster] [GOBBLIN-428] Fix delete spec in cluster
+* [Cluster] [GOBBLIN-419] Add more metrics for cluster job scheduling
+* [Cluster] [GOBBLIN-416] Allow user to configure java options to launch child process for cluster task isolation
+* [Cluster] [GOBBLIN-402] Add more metrics for gobblin cluster and fix the getJobs slowness issue
+* [Cluster] [GOBBLIN-398] Upgrade helix to 0.6.9
+* [Cluster] [GOBBLIN-388] Allow classpath to be configured for JVM based task execution in gobblin cluster
+* [Cluster] [GOBBLIN-381] Add ability to filter hidden directories for ConfigBasedDatasets
+* [Cluster] [GOBBLIN-377] Add debug logging to print out job configuration in gobblin cluster
+* [Cluster] [GOBBLIN-372] Workaround helix workflow deletion bug that removes workflows with a matching prefix
+* [Cluster] [GOBBLIN-369] Clean up the helix job queue after the job execution is complete
+* [Cluster] [GOBBLIN-302] Handle stuck Helix workflow
+* [Cluster] [GOBBLIN-207] Job package made publicly accessible for Gobblin AWS
 * [Cluster] [GOBBLIN-329] Add a basic cluster integration test
 * [Cluster] [GOBBLIN-325] Add a Source and Extractor for stress testing
 * [Cluster] [GOBBLIN-324] Add a configuration to configure the cluster working directory
@@ -59,6 +187,7 @@ GOBBLIN 0.12.0
 * [Cluster] [GOBBLIN-11] Fix for #1822 and #1823
 * [Cluster] [GOBBLIN-10] Fix_for_#1850_and_#1851
 * [Cluster] [GOBBLIN-349] Add guages for gobblin cluster metrics
+* [Core] [GOBBLIN-426] Change signature of AzkabanJobLauncher.initJobListener from private to protected
 * [Core] [GOBBLIN-177] Allow error limit to skip records which are not convertible
 * [Core] [GOBBLIN-333] Remove reference to log4j in WriterUtils
 * [Core] [GOBBLIN-332] Implement fetching hive tokens in tokenUtils
@@ -74,15 +203,26 @@ GOBBLIN 0.12.0
 * [Core] [GOBBLIN-186] Add support for using the Kerberos authentication plugin without a GobblinDriverInstance
 * [Core] [GOBBLIN-179] Make migrated Gobblin code work with old state files
 * [Core] [GOBBLIN-178] Migrate Gobblin codebase from gobblin to org.apache.gobblin package
+* [State Store] [GOBBLIN-409] Set collation to latin1_bin for the MySql state store backing table
 * [State Store] [GOBBLIN-335] Increase blob size in MySQL state store
 * [State Store] [GOBBLIN-270] State Migration script
 * [State Store] [GOBBLIN-230] Convert old package name to new name in old states
+* [Source] [GOBBLIN-422] FileBasedSource needs fs snapshot update of previously failed workunits with latest snapshot
+* [Source] [GOBBLIN-421] Add parameterized type for Pusher message type
+* [Source] [GOBBLIN-408] Add more info to the KafkaExtractorTopicMetadata event for tracking execution times and rates
+* [Source] [GOBBLIN-399] Refactor HiveSource#shouldCreateWorkunit() to accept table as parameter
+* [Source] [GOBBLIN-396] Date partition based json to avro source
+* [Source] [GOBBLIN-395] Add lineage for copying config based dataset
+* [Source] [GOBBLIN-365] Add lookback days config property for CopyableGlobDatasetFinder
 * [Source] [GOBBLIN-296] Kafka json source and writer
 * [Source] [GOBBLIN-245] Create topic specific extract of a WorkUnit in KafkaSource
 * [Source] [GOBBLIN-210] Implement a source based on Dataset Finder
 * [Extractor] [GOBBLIN-197] Modify JDBCExtractor to support reading clob columns as strings
+* [Converter] [GOBBLIN-417] AvroR2JoinConverter passes in the contenttype for Rest.li protocol version
 * [Converter] [GOBBLIN-228] Add config property to ignore fields in JsonRecordAvroSchemaToAvroConverter
 * [Converter] [GOBBLIN-226] Nested schema support in JsonStringToJsonIntermediateConverter and JsonIntermediateToAvroConverter
+* [Writer] [GOBBLIN-362] Improve DDL on staging table creation for MySQL to also have properties from destination table
+* [Writer] [GOBBLIN-361] Support Nested nullable Record type for JDBCWriter
 * [Writer] [GOBBLIN-314] Validate filesize when copying in writer
 * [Writer] [GOBBLIN-171] Add a writer wrapper that closes the wrapped writer and creates a new one
 * [Writer] [GOBBLIN-6] Support eventual consistent filesystems like S3
@@ -101,21 +241,29 @@ GOBBLIN 0.12.0
 * [Metrics] [GOBBLIN-261] Add kafka lineage event
 * [Metrics] [GOBBLIN-182] Emit Lineage Events for Query Based Sources
 * [Metrics] [GOBBLIN-22] Graphite prefix in configuration
+* [Metrics] [GOBBLIN-358] Add logs for GobblinMetrics
 * [Salesforce] [GOBBLIN-288] Add finer-grain dynamic partition generation for Salesforce
 * [Salesforce] [GOBBLIN-265] Add support for PK chunking to gobblin-salesforce
+* [Compaction] [GOBBLIN-413] compaction should use the same time range check
 * [Compaction] [GOBBLIN-256] Improve logging for gobblin compaction
 * [Hive Registration] [GOBBLIN-266] Improve Hive Task setup
 * [Hive Registration] [GOBBLIN-253] Hive materializer enhancements
 * [Hive Registration] [GOBBLIN-172] Pipelined Hive Registration thru. TastStateCollectorService
 * [Config] [GOBBLIN-209] Add support for HOCO global files
+* [DisctpNG] [GOBBLIN-410] Support REPLACE_TABLE_AND_PARTITIONS for Hive copies
+* [DisctpNG] [GOBBLIN-379] Submit an event when DistCp job resource requirements exceed a hard bound.
 * [DistcpNG] [GOBBLIN-173] Add pattern support for job-level blacklist in distcpNG/replication
 * [DistcpNG] [GOBBLIN-8] Add simple distcp job publishing to S3 as an example
 * [DistcpNG] [GOBBLIN-5] Make Watermark checking configurable in distcpNG-replication
+* [Documentation] [GOBBLIN-351] Add docs for ParquetHdfsDataWriter
+* [Documentation] [GOBBLIN-249] Documenting source schema specification
 * [Documentation] [GOBBLIN-282] Support templates on Gobblin Azkaban launcher
 * [Documentation] [GOBBLIN-170] Updating documentation to include Apache with Gobblin
 * [Documentation] [GOBBLIN-25] Gobblin data-management run script and example configuration
 * [Documentation] [GOBBLIN-339] Example to illustrate how to build custom source and extractor in Gobblin.
 * [Documentation] [GOBBLIN-305] Add csv-kafka and kafka-hdfs template
+* [Apache] [GOBBLIN-384] Update Python version in gobblin-pr
+* [Apache] [GOBBLIN-371] In gobblin_pr, Jira resolution fails if python jira package is not installed
 * [Apache] [GOBBLIN-169] Ability to curate licenses of all Gobblin dependencies
 * [Apache] [GOBBLIN-168] Standardize Github PR template for Gobblin
 * [Apache] [GOBBLIN-167] Add dev tooling for signing releases
@@ -133,6 +281,22 @@ GOBBLIN 0.12.0
 
 ## BUGS FIXES
 
+* [Bug] [GOBBLIN-414] Add lineage event for convertible hive datasets
+* [Bug] [GOBBLIN-411] Fix bug in FIFO based pull file loader
+* [Bug] [GOBBLIN-407] Job output is being written to _append directories for full snapshots
+* [Bug] [GOBBLIN-405] Fix race condition with access to immediately invalidated resources
+* [Bug] [GOBBLIN-403] Fix the NPE issue due to uninitialized kafkajobmonitor metrics
+* [Bug] [GOBBLIN-401] Provide a constructor for CombineSelectionPolicy with only the selection config as argument
+* [Bug] [GOBBLIN-397] Create a new dataset version selection policy for filtering dataset versions that have "hidden" paths
+* [Bug] [GOBBLIN-392] Load all dataset states when getLatestDatasetStatesByUrns() is called
+* [Bug] [GOBBLIN-391] Use the DataPublisherFactory to allow sharing publishers in SafeDatasetCommit
+* [Bug] [GOBBLIN-378] Ensure task only publish data when the state is successful in the earlier processing
+* [Bug] [GOBBLIN-364] Exclude JobState from WorkUnit created by PartitionedFileSourceBase
+* [Bug] [GOBBLIN-363] Clean up the joblevel subdir in the _taskstate directory in Gobblin Cluster after a job is done
+* [Bug] [GOBBLIN-360] Helix not pruning old Zookeeper data
+* [Bug] [GOBBLIN-359] Logged Job/Task info from TaskExecutor threads sometimes does not match the task running
+* [Bug] [GOBBLIN-357] Poor logging when zookeeper connection is lost
+* [Bug] [GOBBLIN-356] hanging when retrieving kafka schema
 * [Bug] [GOBBLIN-353] Fix low watermark overridden by high watermark in SalesforceSource
 * [Bug] [GOBBLIN-347] KafkaPusher is not closed when GobblinMetrics.stopReporting is called
 * [Bug] [GOBBLIN-344] Fix help method getResolver in LineageInfo is private

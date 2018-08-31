@@ -20,7 +20,6 @@ package org.apache.gobblin.util;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,12 +50,14 @@ import org.apache.avro.mapred.FsInput;
 import org.apache.avro.util.Utf8;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hive.serde2.avro.AvroSerdeUtils;
 import org.codehaus.jackson.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -126,6 +127,9 @@ public class AvroUtils {
     }
     switch (schema.getType()) {
       case UNION:
+        if (AvroSerdeUtils.isNullableType(schema)) {
+          return AvroUtils.getFieldSchemaHelper(AvroSerdeUtils.getOtherTypeFromNullableType(schema), pathList, field);
+        }
         throw new AvroRuntimeException("Union of complex types cannot be handled : " + schema);
       case MAP:
         if ((field + 1) == pathList.size()) {
@@ -376,7 +380,7 @@ public class AvroUtils {
   public static Schema parseSchemaFromFile(Path filePath, FileSystem fs) throws IOException {
     Preconditions.checkArgument(fs.exists(filePath), filePath + " does not exist");
 
-    try (InputStream in = fs.open(filePath)) {
+    try (FSDataInputStream in = fs.open(filePath)) {
       return new Schema.Parser().parse(in);
     }
   }
@@ -395,7 +399,7 @@ public class AvroUtils {
     }
 
     try (DataOutputStream dos = fs.create(filePath)) {
-      dos.writeChars(schema.toString());
+      dos.writeBytes(schema.toString());
     }
     fs.setPermission(filePath, perm);
   }

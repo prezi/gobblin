@@ -47,6 +47,7 @@ dependencies {
   compile externalDependency.junit
 
   testCompile project(":gobblin-test-utils")
+  testCompile project(path: ":gobblin-metastore", configuration: "testFixtures")
 
   testCompile externalDependency.calciteCore
   testCompile externalDependency.calciteAvatica
@@ -57,6 +58,8 @@ dependencies {
   testCompile externalDependency.hiveJdbc
 
   testRuntime project(":gobblin-modules:gobblin-crypto-provider") // for GPG
+  testCompile project(":gobblin-modules:gobblin-crypto") // for GPG
+  testCompile project(path: ":gobblin-modules:gobblin-crypto", configuration: "tests")
 }
 
 task testJar(type: Jar, dependsOn: testClasses) {

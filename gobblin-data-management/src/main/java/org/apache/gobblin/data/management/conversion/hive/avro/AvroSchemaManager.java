@@ -20,21 +20,30 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.avro.Schema;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.hadoop.hive.serde2.avro.TypeInfoToSchema;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.hash.Hashing;
+
+import lombok.extern.slf4j.Slf4j;
 
 import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.State;
@@ -72,7 +81,6 @@ public class AvroSchemaManager {
   private static final String HIVE_SCHEMA_TEMP_DIR_PATH_KEY = "hive.schema.dir";
   private static final String DEFAULT_HIVE_SCHEMA_TEMP_DIR_PATH_KEY = "/tmp/gobblin_schemas";
 
-  private final FileSystem fs;
   /**
    * A mapping of {@link Schema} hash to its {@link Path} on {@link FileSystem}
    */
@@ -84,14 +92,18 @@ public class AvroSchemaManager {
    */
   private final Path schemaDir;
 
+  private final Configuration configuration;
+
   public AvroSchemaManager(FileSystem fs, State state) {
-    this.fs = fs;
     this.schemaPaths = Maps.newHashMap();
     this.schemaDir = new Path(state.getProp(HIVE_SCHEMA_TEMP_DIR_PATH_KEY, DEFAULT_HIVE_SCHEMA_TEMP_DIR_PATH_KEY),
             state.getProp(ConfigurationKeys.JOB_ID_KEY));
+    this.configuration =
+        HadoopUtils.getConfFromState(state);
   }
 
   /**
+   * Get the url to <code>table</code>'s avro {@link Schema} file.
    * Get the url to <code>table</code>'s avro {@link Schema} file.
    *
    * @param table whose avro schema is to be returned
@@ -115,11 +127,12 @@ public class AvroSchemaManager {
    * Delete the temporary {@link #schemaDir}
    */
   public void cleanupTempSchemas() throws IOException {
-    HadoopUtils.deleteIfExists(this.fs, this.schemaDir, true);
+    FileSystem fs = this.schemaDir.getFileSystem(this.configuration);
+    HadoopUtils.deleteIfExists(fs, this.schemaDir, true);
   }
 
   public static Schema getSchemaFromUrl(Path schemaUrl, FileSystem fs) throws IOException {
-    return AvroUtils.parseSchemaFromFile(schemaUrl, fs);
+    return AvroUtils.parseSchemaFromFile(schemaUrl, schemaUrl.getFileSystem(new Configuration()));
   }
 
   private Path getSchemaUrl(StorageDescriptor sd) throws IOException {
@@ -127,8 +140,9 @@ public class AvroSchemaManager {
     String schemaString = StringUtils.EMPTY;
     try {
       // Try to fetch from SCHEMA URL
-      if (sd.getSerdeInfo().getParameters().containsKey(HiveAvroSerDeManager.SCHEMA_URL)) {
-        String schemaUrl = sd.getSerdeInfo().getParameters().get(HiveAvroSerDeManager.SCHEMA_URL);
+      Map<String,String> serdeParameters = sd.getSerdeInfo().getParameters();
+      if (serdeParameters != null && serdeParameters.containsKey(HiveAvroSerDeManager.SCHEMA_URL)) {
+        String schemaUrl = serdeParameters.get(HiveAvroSerDeManager.SCHEMA_URL);
         if (schemaUrl.startsWith("http")) {
           // Fetch schema literal via HTTP GET if scheme is http(s)
           schemaString = IOUtils.toString(new URI(schemaUrl), StandardCharsets.UTF_8);
@@ -142,11 +156,19 @@ public class AvroSchemaManager {
         }
       }
       // Try to fetch from SCHEMA LITERAL
-      else if (sd.getSerdeInfo().getParameters().containsKey(HiveAvroSerDeManager.SCHEMA_LITERAL)) {
-        schemaString = sd.getSerdeInfo().getParameters().get(HiveAvroSerDeManager.SCHEMA_LITERAL);
+      else if (serdeParameters != null && serdeParameters.containsKey(HiveAvroSerDeManager.SCHEMA_LITERAL)) {
+        schemaString = serdeParameters.get(HiveAvroSerDeManager.SCHEMA_LITERAL);
         log.debug("Schema string is: " + schemaString);
         Schema schema = HiveAvroORCQueryGenerator.readSchemaFromString(schemaString);
 
+        return getOrGenerateSchemaFile(schema);
+      } else {  // Generate schema form Hive schema
+        List<FieldSchema> fields = sd.getCols();
+        List<String> colNames = fields.stream().map(fs -> fs.getName()).collect(Collectors.toList());
+        List<TypeInfo> typeInfos = fields.stream().map(fs -> TypeInfoUtils.getTypeInfoFromTypeString(fs.getType()))
+            .collect(Collectors.toList());
+        List<String> comments = fields.stream().map(fs -> fs.getComment()).collect(Collectors.toList());
+        Schema schema = new TypeInfoToSchema().convert(colNames, typeInfos, comments, null, null, null);
         return getOrGenerateSchemaFile(schema);
       }
     } catch (URISyntaxException e) {
@@ -155,7 +177,8 @@ public class AvroSchemaManager {
     }
 
     // Try to fetch from HDFS
-    Schema schema = AvroUtils.getDirectorySchema(new Path(sd.getLocation()), this.fs, true);
+    FileSystem fs = this.schemaDir.getFileSystem((this.configuration));
+    Schema schema = AvroUtils.getDirectorySchema(new Path(sd.getLocation()), fs, true);
 
     if (schema == null) {
       throw new SchemaNotFoundException("Failed to get avro schema");
@@ -176,6 +199,7 @@ public class AvroSchemaManager {
     if (!this.schemaPaths.containsKey(hashedSchema)) {
 
       Path schemaFilePath = new Path(this.schemaDir, String.valueOf(System.currentTimeMillis() + ".avsc"));
+      FileSystem fs = this.schemaDir.getFileSystem((this.configuration));
       AvroUtils.writeSchemaToFile(schema, schemaFilePath, fs, true);
 
       this.schemaPaths.put(hashedSchema, schemaFilePath);
