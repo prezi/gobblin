@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import org.apache.commons.lang.ArrayUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -66,6 +67,15 @@ public class FileListUtils {
     List<FileStatus> results = Lists.newArrayList();
     for (Path path : paths) {
       results.addAll(listFilesRecursively(fs, path));
+    }
+    return results;
+  }
+
+  public static List<FileStatus> listFilesRecursively(Iterable<Path> paths) throws IOException {
+    List<FileStatus> results = Lists.newArrayList();
+    Configuration hadoopConfig = new Configuration();
+    for (Path path : paths) {
+      results.addAll(listFilesRecursively(path.getFileSystem(hadoopConfig), path));
     }
     return results;
   }
