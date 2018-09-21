@@ -156,7 +156,7 @@ public class CompactionAvroJobConfigurator {
   }
 
   private void configureSchema(Job job) throws IOException {
-    Schema newestSchema = MRCompactorAvroKeyDedupJobRunner.getNewestSchemaFromSource(job, this.fs);
+    Schema newestSchema = MRCompactorAvroKeyDedupJobRunner.getNewestSchemaFromSource(job);
     if (this.state.getPropAsBoolean(MRCompactorAvroKeyDedupJobRunner.COMPACTION_JOB_AVRO_SINGLE_INPUT_SCHEMA, true)) {
       AvroJob.setInputKeySchema(job, newestSchema);
     }

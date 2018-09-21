@@ -579,12 +579,12 @@ public class MRCompactor implements Compactor {
   /**
    * Rename all the source directories for a specific dataset
    */
-  public static void renameSourceDirAsCompactionComplete (FileSystem fs, Dataset dataset) {
+  public static void renameSourceDirAsCompactionComplete (Dataset dataset) {
     try {
       for (Path path: dataset.getRenamePaths()) {
         Path newPath = new Path (path.getParent(), path.getName() + MRCompactor.COMPACTION_RENAME_SOURCE_DIR_SUFFIX);
         LOG.info("[{}] Renaming {} to {}", dataset.getDatasetName(), path, newPath);
-        fs.rename(path, newPath);
+        path.getFileSystem(new Configuration()).rename(path, newPath);
       }
     } catch (Exception e) {
       LOG.error ("Rename input path failed", e);
