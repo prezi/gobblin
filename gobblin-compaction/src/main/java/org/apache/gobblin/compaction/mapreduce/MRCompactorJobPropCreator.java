@@ -269,7 +269,7 @@ public class MRCompactorJobPropCreator {
         if (isOutputLateDataExists (dataset)) {
           LOG.info ("{} don't have new data, but previous late data still remains, check if it requires to move", dataset.getDatasetName());
           dataset.setJobProps(jobProps);
-          dataset.checkIfNeedToRecompact(new DatasetHelper(dataset, this.fs, Lists.newArrayList("avro")));
+          dataset.checkIfNeedToRecompact(new DatasetHelper(dataset, Lists.newArrayList("avro")));
           if (dataset.needToRecompact()) {
             MRCompactor.modifyDatasetStateToRecompact (dataset);
           } else {
