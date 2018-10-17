@@ -150,7 +150,19 @@ public class HiveAvroSerDeManager extends HiveSerDeManager {
    * Get schema for a directory using {@link AvroUtils#getDirectorySchema(Path, FileSystem, boolean)}.
    */
   protected Schema getDirectorySchema(Path directory) throws IOException {
-    return AvroUtils.getDirectorySchema(directory, this.fs, true);
+    Retryer<Schema> retryer = RetryerFactory.newInstance(COMPACTION_RETRY_DEFAULTS);
+    Schema directorySchema = null;
+
+    try {
+      directorySchema = retryer.call(() -> {
+        log.info("Getting directory schema from path {}", directory);
+        Schema schema = AvroUtils.getDirectorySchema(directory, this.fs, true);
+        return schema;
+      });
+    } catch (Exception e) {
+      throw new IOException("Unable to get schema from path "+ directory +" and won't retry anymore." + e);
+    }
+    return directorySchema;
   }
 
   /**
