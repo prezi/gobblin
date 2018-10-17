@@ -271,10 +271,11 @@ public class KafkaDeserializerExtractorTest {
   }
 
   @Test
-  public void testConfluentShouldNotQuerySchemaRegistryWhenTheGapIsZero()
+  public void testConfluentShouldNotQuerySchemaRegistryWhenWorkUnitIsEmpty()
       throws IOException, RestClientException, SchemaRegistryException {
     WorkUnitState mockWorkUnitState = getMockWorkUnitState(0L, 0L);
     mockWorkUnitState.setProp("schema.registry.url", TEST_URL);
+    mockWorkUnitState.setProp(ConfigurationKeys.WORK_UNIT_IS_EMPTY, true);
 
 
     SchemaRegistryClient mockSchemaRegistryClient = mock(SchemaRegistryClient.class);

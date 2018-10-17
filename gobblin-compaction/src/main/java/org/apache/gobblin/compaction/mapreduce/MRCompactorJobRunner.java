@@ -148,8 +148,8 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
   }
 
   protected final Dataset dataset;
-  protected final FileSystem fs;
   protected final FileSystem tmpFs;
+  protected final Configuration hadoopConfig;
   protected final FsPermission perm;
   protected final boolean shouldDeduplicate;
   protected final boolean outputDeduplicated;
@@ -191,7 +191,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
 
   protected MRCompactorJobRunner(Dataset dataset, FileSystem fs) {
     this.dataset = dataset;
-    this.fs = fs;
+    this.hadoopConfig = new Configuration();
     this.perm = HadoopUtils.deserializeFsPermission(this.dataset.jobProps(), COMPACTION_JOB_OUTPUT_DIR_PERMISSION,
         FsPermission.getDefault());
     this.recompactFromDestPaths = this.dataset.jobProps().getPropAsBoolean(
@@ -224,10 +224,11 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
     try {
       Log.info("Tmp fs uri:"+this.tmpFsUri);
       if (this.tmpFsUri != null) {
-        this.tmpFs = FileSystem.get(new URI(this.tmpFsUri), new Configuration());
+        this.tmpFs = FileSystem.get(new URI(this.tmpFsUri), this.hadoopConfig);
       } else {
-        this.tmpFs = MRCompactorJobRunner.this.fs;
+        this.tmpFs = fs;
       }
+
     } catch (Exception e) {
       throw new RuntimeException("Failed get Filesystem from tmp fs uri", e);
     }
@@ -250,7 +251,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
     }
 
     this.applicablePathCache = CacheBuilder.newBuilder().maximumSize(2000).build();
-    this.datasetHelper = new DatasetHelper(this.dataset, this.fs, this.getApplicableFileExtensions());
+    this.datasetHelper = new DatasetHelper(this.dataset, this.getApplicableFileExtensions());
 
     this.outputExtension = this.dataset.jobProps().getProp(MRCompactor.COMPACTION_FILE_EXTENSION, ".avro");
 
@@ -297,8 +298,9 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
         Path lateDataOutputPath = this.outputDeduplicated ? this.dataset.outputLatePath() : this.dataset.outputPath();
         LOG.info(String.format("Copying %d late data files to %s", newLateFilePaths.size(), lateDataOutputPath));
         if (this.outputDeduplicated) {
-          if (!this.fs.exists(lateDataOutputPath)) {
-            if (!this.fs.mkdirs(lateDataOutputPath)) {
+          FileSystem lateFs = lateDataOutputPath.getFileSystem(this.hadoopConfig);
+          if (!lateFs.exists(lateDataOutputPath)) {
+            if (!lateFs.mkdirs(lateDataOutputPath)) {
               throw new RuntimeException(
                   String.format("Failed to create late data output directory: %s.", lateDataOutputPath.toString()));
             }
@@ -310,7 +312,8 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
         }
         this.status = Status.COMMITTED;
       } else {
-        if (this.fs.exists(this.dataset.outputPath()) && !canOverwriteOutputDir()) {
+        FileSystem outputFs = this.dataset.outputPath().getFileSystem(this.hadoopConfig);
+        if (outputFs.exists(this.dataset.outputPath()) && !canOverwriteOutputDir()) {
           LOG.warn(String.format("Output paths %s exists. Will not compact %s.", this.dataset.outputPath(),
               this.dataset.inputPaths()));
           this.status = Status.COMMITTED;
@@ -345,7 +348,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
         }
       }
       if (renameSourceDir) {
-        MRCompactor.renameSourceDirAsCompactionComplete (this.fs, this.dataset);
+        MRCompactor.renameSourceDirAsCompactionComplete (this.dataset);
       } else {
         this.markOutputDirAsCompleted(compactionTimestamp);
       }
@@ -373,7 +376,13 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
 
     Set<Path> inputPaths = getInputPaths();
     long maxTimestamp = Long.MIN_VALUE;
-    for (FileStatus status : FileListUtils.listFilesRecursively(this.fs, inputPaths)) {
+
+    FileSystem fs = null;
+    if (!inputPaths.isEmpty()){
+      fs = inputPaths.iterator().next().getFileSystem(new Configuration());
+    }
+
+    for (FileStatus status : FileListUtils.listFilesRecursively(fs, inputPaths)) {
       maxTimestamp = Math.max(maxTimestamp, status.getModificationTime());
     }
     return maxTimestamp == Long.MIN_VALUE ? new DateTime(timeZone) : new DateTime(maxTimestamp, timeZone);
@@ -394,9 +403,9 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
               MRCompactorJobRunner.this.inputRecordCountProvider);
           String targetFileName = convertedFilePath.getName();
           Path outPath = MRCompactorJobRunner.this.lateOutputRecordCountProvider.constructLateFilePath(targetFileName,
-              MRCompactorJobRunner.this.fs, outputDirectory);
-          HadoopUtils.copyPath (MRCompactorJobRunner.this.fs, filePath, MRCompactorJobRunner.this.fs, outPath, true,
-              MRCompactorJobRunner.this.fs.getConf());
+              outputDirectory.getFileSystem(new Configuration()), outputDirectory);
+          HadoopUtils.copyPath (filePath.getFileSystem(new Configuration()), filePath, outPath.getFileSystem(new Configuration()), outPath, true,
+              new Configuration());
           LOG.debug(String.format("Copied %s to %s.", filePath, outPath));
           return null;
         }
@@ -424,8 +433,8 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
       return;
     }
     Path jarFileDir = new Path(this.dataset.jobProps().getProp(MRCompactor.COMPACTION_JARS));
-    for (FileStatus status : this.fs.listStatus(jarFileDir)) {
-      DistributedCache.addFileToClassPath(status.getPath(), conf, this.fs);
+    for (FileStatus status : jarFileDir.getFileSystem(conf).listStatus(jarFileDir)) {
+      DistributedCache.addFileToClassPath(status.getPath(), conf, status.getPath().getFileSystem(conf));
     }
   }
 
@@ -503,8 +512,10 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
 
   private long getInputSize() throws IOException {
     long inputSize = 0;
+    Configuration configuration = new Configuration();
     for (Path inputPath : this.getInputPaths()) {
-      inputSize += this.fs.getContentSummary(inputPath).getLength();
+
+      inputSize += inputPath.getFileSystem(configuration).getContentSummary(inputPath).getLength();
     }
     return inputSize;
   }
@@ -561,7 +572,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
   }
 
   private boolean findNewDataSinceCompactionStarted(Path inputPath, DateTime jobStartTime) throws IOException {
-    for (FileStatus fstat : FileListUtils.listFilesRecursively(this.fs, inputPath)) {
+    for (FileStatus fstat : FileListUtils.listFilesRecursively(inputPath.getFileSystem(this.hadoopConfig), inputPath)) {
       DateTime fileModificationTime = new DateTime(fstat.getModificationTime());
       if (fileModificationTime.isAfter(jobStartTime)) {
         LOG.info(String.format("Found new file %s in input folder %s after compaction started. Will abort compaction.",
@@ -574,7 +585,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
 
   private void markOutputDirAsCompleted(DateTime jobStartTime) throws IOException {
     Path completionFilePath = new Path(this.dataset.outputPath(), MRCompactor.COMPACTION_COMPLETE_FILE_NAME);
-    try (FSDataOutputStream completionFileStream = this.fs.create(completionFilePath)) {
+    try (FSDataOutputStream completionFileStream = completionFilePath.getFileSystem(hadoopConfig).create(completionFilePath)) {
       completionFileStream.writeLong(jobStartTime.getMillis());
     }
   }
@@ -583,13 +594,13 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
     Retryer<Void> retryer = RetryerFactory.newInstance(this.retrierConfig);
 
     LOG.info(String.format("Moving %s to %s", this.dataset.outputTmpPath(), this.dataset.outputPath()));
-
-    this.fs.delete(this.dataset.outputPath(), true);
+    FileSystem outputFs = this.dataset.outputPath().getFileSystem(new Configuration());
+    outputFs.delete(this.dataset.outputPath(), true);
 
     if (this.isRetryEnabled) {
       try {
         retryer.call(() -> {
-          if (fs.exists(this.dataset.outputPath())) {
+          if (outputFs.exists(this.dataset.outputPath())) {
             throw new IOException("Path " + this.dataset.outputPath() + " exists however it should not. Will wait more.");
           }
           return null;
@@ -599,10 +610,10 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
       }
     }
 
-    WriterUtils.mkdirsWithRecursivePermissionWithRetry(MRCompactorJobRunner.this.fs, this.dataset.outputPath().getParent(), this.perm, this.retrierConfig);
+    WriterUtils.mkdirsWithRecursivePermissionWithRetry(outputFs, this.dataset.outputPath().getParent(), this.perm, this.retrierConfig);
 
-    Log.info("Moving from fs: ("+MRCompactorJobRunner.this.tmpFs.getUri()+") path: "+ this.dataset.outputTmpPath() + " to "+ "fs: ("+ FileSystem.get(this.dataset.outputPath().getParent().toUri(), this.fs.getConf()).getUri()+") output path: " + this.dataset.outputPath());
-    HadoopUtils.movePath (MRCompactorJobRunner.this.tmpFs, this.dataset.outputTmpPath(), FileSystem.get(this.dataset.outputPath().getParent().toUri(), this.fs.getConf()), this.dataset.outputPath(), false, this.fs.getConf()) ;
+    Log.info("Moving from fs: ("+MRCompactorJobRunner.this.tmpFs.getUri()+") path: "+ this.dataset.outputTmpPath() + " to "+ "fs: ("+ FileSystem.get(this.dataset.outputPath().getParent().toUri(), hadoopConfig).getUri()+") output path: " + this.dataset.outputPath());
+    HadoopUtils.movePath (MRCompactorJobRunner.this.tmpFs, this.dataset.outputTmpPath(), FileSystem.get(this.dataset.outputPath().getParent().toUri(), hadoopConfig), this.dataset.outputPath(), false, hadoopConfig) ;
   }
 
   private void addGoodFilesToOutputPath (List<Path> goodPaths) throws IOException {
@@ -610,17 +621,17 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
       String fileName = path.getName();
       LOG.info(String.format("Adding %s to %s", path.toString(), this.dataset.outputPath()));
       Path outPath = MRCompactorJobRunner.this.lateOutputRecordCountProvider.constructLateFilePath(fileName,
-          MRCompactorJobRunner.this.fs, this.dataset.outputPath());
+          this.dataset.outputPath().getFileSystem(this.hadoopConfig), this.dataset.outputPath());
 
       HadoopUtils.movePath(MRCompactorJobRunner.this.tmpFs, path,
-            FileSystem.get(this.dataset.outputPath().getParent().toUri(), this.fs.getConf()), outPath, false, this.fs.getConf());
+            FileSystem.get(this.dataset.outputPath().getParent().toUri(), hadoopConfig), outPath, false, hadoopConfig);
     }
   }
 
 
   private void deleteFilesByPaths(Set<Path> paths) throws IOException {
     for (Path path : paths) {
-      HadoopUtils.deletePathAndEmptyAncestors(this.fs, path, true);
+      HadoopUtils.deletePathAndEmptyAncestors(path.getFileSystem(new Configuration()), path, true);
     }
   }
 
@@ -658,7 +669,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
 
         @Override
         public List<Path> call() throws Exception {
-          if (!MRCompactorJobRunner.this.fs.exists(dataDir)) {
+          if (!dataDir.getFileSystem(hadoopConfig).exists(dataDir)) {
             return Lists.newArrayList();
           }
           List<Path> paths = Lists.newArrayList();
@@ -690,17 +701,17 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
   private void submitSlaEvent(Job job) {
     try {
       CompactionSlaEventHelper
-          .getEventSubmitterBuilder(this.dataset, Optional.of(job), this.fs)
+          .getEventSubmitterBuilder(this.dataset, Optional.of(job))
           .eventSubmitter(this.eventSubmitter)
           .eventName(CompactionSlaEventHelper.COMPACTION_COMPLETED_EVENT_NAME)
           .additionalMetadata(
               CompactionSlaEventHelper.LATE_RECORD_COUNT,
               Long.toString(this.lateOutputRecordCountProvider.getRecordCount(this.getApplicableFilePaths(this.dataset
-                  .outputLatePath(), this.fs))))
+                  .outputLatePath(), this.dataset.outputLatePath().getFileSystem(hadoopConfig)))))
           .additionalMetadata(
               CompactionSlaEventHelper.REGULAR_RECORD_COUNT,
               Long.toString(this.outputRecordCountProvider.getRecordCount(this.getApplicableFilePaths(this.dataset
-                  .outputPath(), this.fs))))
+                  .outputPath(), this.dataset.outputPath().getFileSystem(hadoopConfig)))))
           .additionalMetadata(CompactionSlaEventHelper.RECOMPATED_METADATA_NAME,
               Boolean.toString(this.dataset.needToRecompact())).build().submit();
     } catch (Throwable e) {
@@ -717,7 +728,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
 
     try {
       CompactionSlaEventHelper
-          .getEventSubmitterBuilder(this.dataset, Optional.<Job> absent(), this.fs)
+          .getEventSubmitterBuilder(this.dataset, Optional.<Job> absent())
           .eventSubmitter(this.eventSubmitter)
           .eventName(CompactionSlaEventHelper.COMPACTION_RECORD_COUNT_EVENT)
           .additionalMetadata(CompactionSlaEventHelper.DATASET_OUTPUT_PATH, this.dataset.outputPath().toString())

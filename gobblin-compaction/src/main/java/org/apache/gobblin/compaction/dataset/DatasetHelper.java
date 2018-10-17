@@ -22,6 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -54,7 +55,6 @@ import org.apache.gobblin.util.reflection.GobblinConstructorUtils;
  */
 
 public class DatasetHelper {
-  private final FileSystem fs;
   private final Dataset dataset;
   private final RecordCountProvider inputRecordCountProvider;
   private final RecordCountProvider outputRecordCountProvider;
@@ -65,9 +65,8 @@ public class DatasetHelper {
 
   private static final Logger logger = LoggerFactory.getLogger(DatasetHelper.class);
 
-  public DatasetHelper(Dataset dataset, FileSystem fs, Collection<String> extensions) {
+  public DatasetHelper(Dataset dataset, Collection<String> extensions) {
     this.extensions = extensions;
-    this.fs = fs;
     this.dataset = dataset;
     this.condition = createRecompactionCondition();
 
@@ -127,7 +126,7 @@ public class DatasetHelper {
   }
 
   public List<Path> getApplicableFilePaths (Path dataDir) throws IOException {
-    return getApplicableFilePaths(fs, dataDir, Lists.newArrayList("avro"));
+    return getApplicableFilePaths(dataDir.getFileSystem(new Configuration()), dataDir, Lists.newArrayList("avro"));
   }
 
   public Optional<DateTime> getEarliestLateFileModificationTime() {
@@ -135,7 +134,7 @@ public class DatasetHelper {
         .forID(this.dataset.jobProps().getProp(MRCompactor.COMPACTION_TIMEZONE, MRCompactor.DEFAULT_COMPACTION_TIMEZONE));
     try {
       long maxTimestamp = Long.MIN_VALUE;
-      for (FileStatus status : FileListUtils.listFilesRecursively(this.fs, this.dataset.outputLatePath())) {
+      for (FileStatus status : FileListUtils.listFilesRecursively(this.dataset.outputLatePath().getFileSystem(new Configuration()), this.dataset.outputLatePath())) {
         maxTimestamp = Math.max(maxTimestamp, status.getModificationTime());
       }
       return maxTimestamp == Long.MIN_VALUE ? Optional.<DateTime>absent():Optional.of(new DateTime(maxTimestamp, timeZone));
@@ -156,7 +155,7 @@ public class DatasetHelper {
     long lateOutputRecordCount = 0l;
     try {
       Path outputLatePath = dataset.outputLatePath();
-      if (this.fs.exists(outputLatePath)) {
+      if (outputLatePath.getFileSystem(new Configuration()).exists(outputLatePath)) {
         lateOutputRecordCount = this.lateOutputRecordCountProvider
             .getRecordCount(this.getApplicableFilePaths(dataset.outputLatePath()));
       }
@@ -186,7 +185,8 @@ public class DatasetHelper {
       long lateOutputFileCount = 0l;
       try {
         Path outputLatePath = dataset.outputLatePath();
-        if (this.fs.exists(outputLatePath)) {
+
+        if (outputLatePath.getFileSystem(new Configuration()).exists(outputLatePath)) {
           lateOutputFileCount = getApplicableFilePaths(dataset.outputLatePath()).size();
           logger.info("LateOutput File Count is : " + lateOutputFileCount + " at " + outputLatePath.toString());
         }

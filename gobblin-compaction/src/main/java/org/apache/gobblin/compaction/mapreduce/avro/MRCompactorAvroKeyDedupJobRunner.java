@@ -34,6 +34,7 @@ import org.apache.avro.mapred.AvroKey;
 import org.apache.avro.mapred.AvroValue;
 import org.apache.avro.mapreduce.AvroJob;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -114,7 +115,7 @@ public class MRCompactorAvroKeyDedupJobRunner extends MRCompactorJobRunner {
   }
 
   private void configureSchema(Job job) throws IOException {
-    Schema newestSchema = getNewestSchemaFromSource(job, this.fs);
+    Schema newestSchema = getNewestSchemaFromSource(job);
     if (this.useSingleInputSchema) {
       AvroJob.setInputKeySchema(job, newestSchema);
     }
@@ -144,7 +145,7 @@ public class MRCompactorAvroKeyDedupJobRunner extends MRCompactorJobRunner {
       Path keySchemaFile = getKeySchemaFile();
       LOG.info("Using attributes specified in schema file " + keySchemaFile + " for compaction");
       try {
-        keySchema = AvroUtils.parseSchemaFromFile(keySchemaFile, this.fs);
+        keySchema = AvroUtils.parseSchemaFromFile(keySchemaFile, keySchemaFile.getFileSystem(new Configuration()));
       } catch (IOException e) {
         LOG.error("Failed to parse avro schema from " + keySchemaFile
             + ", using key attributes in the schema for compaction");
@@ -221,19 +222,20 @@ public class MRCompactorAvroKeyDedupJobRunner extends MRCompactorJobRunner {
         .equals(SchemaCompatibilityType.COMPATIBLE);
   }
 
-  public static Schema getNewestSchemaFromSource(Job job, FileSystem fs) throws IOException {
+  public static Schema getNewestSchemaFromSource(Job job) throws IOException {
     Path[] sourceDirs = FileInputFormat.getInputPaths(job);
+    Configuration hadoopConfig = new Configuration();
 
     List<FileStatus> files = new ArrayList<FileStatus>();
 
     for (Path sourceDir : sourceDirs) {
-      files.addAll(Arrays.asList(fs.listStatus(sourceDir)));
+      files.addAll(Arrays.asList(sourceDir.getFileSystem(new Configuration()).listStatus(sourceDir)));
     }
 
     Collections.sort(files, new LastModifiedDescComparator());
 
     for (FileStatus file : files) {
-      Schema schema = getNewestSchemaFromSource(file.getPath(), fs);
+      Schema schema = getNewestSchemaFromSource(file.getPath(), file.getPath().getFileSystem(hadoopConfig));
       if (schema != null) {
         return schema;
       }
