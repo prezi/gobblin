@@ -376,7 +376,13 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
 
     Set<Path> inputPaths = getInputPaths();
     long maxTimestamp = Long.MIN_VALUE;
-    for (FileStatus status : FileListUtils.listFilesRecursively(inputPaths)) {
+
+    FileSystem fs = null;
+    if (!inputPaths.isEmpty()){
+      fs = inputPaths.iterator().next().getFileSystem(new Configuration());
+    }
+
+    for (FileStatus status : FileListUtils.listFilesRecursively(fs, inputPaths)) {
       maxTimestamp = Math.max(maxTimestamp, status.getModificationTime());
     }
     return maxTimestamp == Long.MIN_VALUE ? new DateTime(timeZone) : new DateTime(maxTimestamp, timeZone);
