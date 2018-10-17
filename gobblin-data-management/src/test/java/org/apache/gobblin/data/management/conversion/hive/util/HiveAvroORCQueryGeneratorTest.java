@@ -43,6 +43,7 @@ public class HiveAvroORCQueryGeneratorTest {
   private static String resourceDir = "avroToOrcQueryUtilsTest";
   private static Optional<Table> destinationTableMeta = Optional.absent();
   private static boolean isEvolutionEnabled = true;
+  private static boolean isUseFlattenedSource = true;
   private static Optional<Integer> rowLimit = Optional.absent();
 
   /***
@@ -172,7 +173,7 @@ public class HiveAvroORCQueryGeneratorTest {
     String q = HiveAvroORCQueryGenerator
         .generateTableMappingDML(schema, flattenedSchema, schemaName, schemaName + "_orc", Optional.<String>absent(),
             Optional.<String>absent(), Optional.<Map<String, String>>absent(), Optional.<Boolean>absent(),
-            Optional.<Boolean>absent(), isEvolutionEnabled, destinationTableMeta, rowLimit);
+            Optional.<Boolean>absent(), isEvolutionEnabled, isUseFlattenedSource, destinationTableMeta, rowLimit);
 
     Assert.assertEquals(q.trim(),
         ConversionHiveTestUtils.readQueryFromFile(resourceDir, "recordWithinRecordWithinRecord.dml"));
@@ -221,7 +222,7 @@ public class HiveAvroORCQueryGeneratorTest {
     String q = HiveAvroORCQueryGenerator
         .generateTableMappingDML(schema, flattenedSchema, schemaName, schemaName + "_orc", Optional.<String>absent(),
             Optional.<String>absent(), Optional.of(partitionDMLInfo), Optional.<Boolean>absent(),
-            Optional.<Boolean>absent(), isEvolutionEnabled, destinationTableMeta, rowLimit);
+            Optional.<Boolean>absent(), isEvolutionEnabled, isUseFlattenedSource, destinationTableMeta, rowLimit);
 
     Assert.assertEquals(q.trim(), ConversionHiveTestUtils.readQueryFromFile(resourceDir, "testMultiPartition.dml"));
   }
@@ -260,7 +261,7 @@ public class HiveAvroORCQueryGeneratorTest {
     String q = HiveAvroORCQueryGenerator
         .generateTableMappingDML(schema, flattenedSchema, schemaName, schemaName + "_orc", Optional.<String>absent(),
             Optional.<String>absent(), Optional.<Map<String, String>>absent(), Optional.<Boolean>absent(),
-            Optional.<Boolean>absent(), isEvolutionEnabled, destinationTableMeta, rowLimit);
+            Optional.<Boolean>absent(), isEvolutionEnabled, isUseFlattenedSource, destinationTableMeta, rowLimit);
 
     Assert.assertEquals(q.trim(), ConversionHiveTestUtils.readQueryFromFile(resourceDir, "flattenedWithRowLimit.dml"));
   }

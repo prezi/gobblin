@@ -376,6 +376,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
 
     Set<Path> inputPaths = getInputPaths();
     long maxTimestamp = Long.MIN_VALUE;
+
     FileSystem fs = null;
     if (!inputPaths.isEmpty()){
       fs = inputPaths.iterator().next().getFileSystem(new Configuration());
