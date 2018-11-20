@@ -15,19 +15,27 @@
  * limitations under the License.
  */
 
-dependencies {
-  compile project(':gobblin-example')
-  compile project(':gobblin-modules:gobblin-azkaban')
-  compile project(':gobblin-modules:gobblin-compliance')
-  compile project(':gobblin-modules:gobblin-crypto')
-  compile project(':gobblin-modules:gobblin-crypto-provider')
-  compile project(':gobblin-modules:gobblin-kafka-08')
-  compile project(':gobblin-modules:google-ingestion')
-  compile project(':gobblin-modules:gobblin-json')
-  compile project(':gobblin-modules:gobblin-helix')
-  compile project(':gobblin-modules:gobblin-metadata')
-  compile project(':gobblin-modules:gobblin-grok')
-  compile project(':gobblin-modules:gobblin-metrics-cloudwatch')
-  compile project(':gobblin-modules:gobblin-geoip')
-  compile project(':gobblin-modules:gobblin-zuora')
+package org.apache.gobblin.zuora;
+
+import java.io.Serializable;
+import org.apache.gobblin.annotation.Alpha;
+
+
+@Alpha
+public class ZuoraDeletedColumn implements Serializable {
+  private static final long serialVersionUID = 1L;
+
+  String column;
+
+  ZuoraDeletedColumn(String columnName) {
+    column = columnName;
+  }
+
+  public String getColumn() {
+    return column;
+  }
+
+  public void setColumn(String column) {
+    this.column = column;
+  }
 }
