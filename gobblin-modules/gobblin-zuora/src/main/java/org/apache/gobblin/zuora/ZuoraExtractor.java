@@ -105,7 +105,7 @@ public class ZuoraExtractor extends QueryBasedExtractor<JsonArray, JsonElement> 
 
     try {
       JsonArray array =
-          GSON.fromJson(workUnit.getProp(ConfigurationKeys.SOURCE_SCHEMA), JsonArray.class).getAsJsonArray();
+          GSON.fromJson(this.WorkUnitState.getProp(ConfigurationKeys.SOURCE_SCHEMA), JsonArray.class).getAsJsonArray();
       for (JsonElement columnElement : array) {
         Schema obj = GSON.fromJson(columnElement, Schema.class);
         String columnName = obj.getColumnName();
