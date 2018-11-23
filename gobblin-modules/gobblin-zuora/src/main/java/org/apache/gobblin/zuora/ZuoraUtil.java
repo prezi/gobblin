@@ -68,7 +68,7 @@ public class ZuoraUtil {
       String password =
           PasswordManager.getInstance(workUnitState).readPassword(workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_PASSWORD));
       String userpass = userName + ":" + password;
-      String basicAuth = "Basic " + new String(new Base64().encode(userpass.getBytes("UTF-8")), "UTF-8");
+      String basicAuth = "Basic " + new String(new Base64().encodeBase64URLSafe(userpass.getBytes("UTF-8")), "UTF-8");
       connection.setRequestProperty("Authorization", basicAuth);
     }
 
