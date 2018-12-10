@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 import javax.net.ssl.HttpsURLConnection;
 import lombok.extern.slf4j.Slf4j;
 
@@ -102,7 +103,8 @@ class ZuoraClientImpl implements ZuoraClient {
     queries.add(new ZuoraQuery(_workUnitState.getProp(ConfigurationKeys.JOB_NAME_KEY), query,
         _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_DELTED_COLUMN, "")));
     ZuoraParams filterPayload = new ZuoraParams(_workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_PARTNER, "sample"),
-        _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_PROJECT, "sample"), queries,
+        _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_PROJECT, UUID.randomUUID().toString()), //Basically this makes the query stateless in case of missing zuora project
+        queries,
         _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_API_NAME, "sample"),
         _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_OUTPUT_FORMAT, "csv"),
         _workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_VERSION, "1.1"));
