@@ -29,5 +29,6 @@ dependencies {
   compile project(':gobblin-modules:gobblin-grok')
   compile project(':gobblin-modules:gobblin-metrics-cloudwatch')
   compile project(':gobblin-modules:gobblin-geoip')
+  compile project(':gobblin-modules:gobblin-sql')
   compile project(':gobblin-modules:gobblin-zuora')
 }
