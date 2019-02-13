@@ -52,6 +52,8 @@ import static org.apache.gobblin.util.retry.RetryerFactory.RETRY_MULTIPLIER;
 import static org.apache.gobblin.util.retry.RetryerFactory.RETRY_TIME_OUT_MS;
 import static org.apache.gobblin.util.retry.RetryerFactory.RETRY_TYPE;
 
+import static org.apache.gobblin.hive.policy.PartitionAwareHiveRegistrationPolicy.SCHEMA_SET;
+
 
 /**
  * A {@link HiveSerDeManager} for registering Avro tables and partitions.
@@ -75,6 +77,7 @@ public class HiveAvroSerDeManager extends HiveSerDeManager {
 
   protected final FileSystem fs;
   protected final boolean useSchemaFile;
+  protected final boolean setSchema;
   protected final String schemaFileName;
   protected final int schemaLiteralLengthLimit;
   protected final HiveSerDeWrapper serDeWrapper = HiveSerDeWrapper.get("AVRO");
@@ -103,6 +106,7 @@ public class HiveAvroSerDeManager extends HiveSerDeManager {
       this.fs = FileSystem.get(HadoopUtils.getConfFromState(props));
     }
 
+    this.setSchema = props.getPropAsBoolean(SCHEMA_SET, true);
     this.useSchemaFile = props.getPropAsBoolean(USE_SCHEMA_FILE, DEFAULT_USE_SCHEMA_FILE);
     this.schemaFileName = props.getProp(SCHEMA_FILE_NAME, DEFAULT_SCHEMA_FILE_NAME);
     this.schemaLiteralLengthLimit =
@@ -132,7 +136,9 @@ public class HiveAvroSerDeManager extends HiveSerDeManager {
     hiveUnit.setInputFormat(this.serDeWrapper.getInputFormatClassName());
     hiveUnit.setOutputFormat(this.serDeWrapper.getOutputFormatClassName());
 
-    addSchemaProperties(path, hiveUnit);
+    if (setSchema) {
+      addSchemaProperties(path, hiveUnit);
+    }
   }
 
   @Override
@@ -146,11 +152,14 @@ public class HiveAvroSerDeManager extends HiveSerDeManager {
     if (source.getOutputFormat().isPresent()) {
       target.setOutputFormat(source.getOutputFormat().get());
     }
-    if (source.getSerDeProps().contains(SCHEMA_LITERAL)) {
-      target.setSerDeProp(SCHEMA_LITERAL, source.getSerDeProps().getProp(SCHEMA_LITERAL));
-    }
-    if (source.getSerDeProps().contains(SCHEMA_URL)) {
-      target.setSerDeProp(SCHEMA_URL, source.getSerDeProps().getProp(SCHEMA_URL));
+
+    if (setSchema) {
+      if (source.getSerDeProps().contains(SCHEMA_LITERAL)) {
+        target.setSerDeProp(SCHEMA_LITERAL, source.getSerDeProps().getProp(SCHEMA_LITERAL));
+      }
+      if (source.getSerDeProps().contains(SCHEMA_URL)) {
+        target.setSerDeProp(SCHEMA_URL, source.getSerDeProps().getProp(SCHEMA_URL));
+      }
     }
   }
 
