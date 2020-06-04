@@ -95,7 +95,7 @@ public class RecompactionConditionTest {
       fs.mkdirs(outputLatePath);
       RecompactionConditionFactory factory = new RecompactionConditionBasedOnFileCount.Factory();
       RecompactionCondition conditionBasedOnFileCount= factory.createRecompactionCondition(dataset);
-      DatasetHelper helper = new DatasetHelper(dataset, fs, Lists.newArrayList("avro"));
+      DatasetHelper helper = new DatasetHelper(dataset, fs, fs, Lists.newArrayList("avro"));
 
       fs.createNewFile(new Path(outputLatePath, new Path ("1.avro")));
       fs.createNewFile(new Path(outputLatePath, new Path ("2.avro")));

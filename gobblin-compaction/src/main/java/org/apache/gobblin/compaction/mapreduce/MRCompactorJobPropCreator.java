@@ -62,6 +62,7 @@ public class MRCompactorJobPropCreator {
 
     Dataset dataset;
     FileSystem fs;
+    FileSystem targetFs;
     State state;
     double lateDataThresholdForRecompact;
 
@@ -72,6 +73,7 @@ public class MRCompactorJobPropCreator {
 
     Builder withFileSystem(FileSystem fs) {
       this.fs = fs;
+      this.targetFs = fs;
       return this;
     }
 
@@ -93,6 +95,7 @@ public class MRCompactorJobPropCreator {
 
   protected final Dataset dataset;
   protected final FileSystem fs;
+  protected final FileSystem targetFs;
   protected final State state;
   protected final boolean inputDeduplicated;
   protected final boolean outputDeduplicated;
@@ -109,6 +112,7 @@ public class MRCompactorJobPropCreator {
   private MRCompactorJobPropCreator(Builder builder) {
     this.dataset = builder.dataset;
     this.fs = builder.fs;
+    this.targetFs = builder.targetFs;
     this.state = builder.state;
     this.lateDataThresholdForRecompact = builder.lateDataThresholdForRecompact;
     this.inputDeduplicated = this.state.getPropAsBoolean(MRCompactor.COMPACTION_INPUT_DEDUPLICATED,
@@ -149,7 +153,7 @@ public class MRCompactorJobPropCreator {
 
   private void setCompactionSLATimestamp(Dataset dataset) {
     // Set up SLA timestamp only if this dataset will be compacted and MRCompactor.COMPACTION_INPUT_PATH_TIME is present.
-    if ((this.recompactFromOutputPaths || !MRCompactor.datasetAlreadyCompacted(this.fs, dataset, this.renameSourceDirEnabled))
+    if ((this.recompactFromOutputPaths || !MRCompactor.datasetAlreadyCompacted(this.fs, this.targetFs, dataset, this.renameSourceDirEnabled))
         && dataset.jobProps().contains(MRCompactor.COMPACTION_INPUT_PATH_TIME)) {
       long timeInMills = dataset.jobProps().getPropAsLong(MRCompactor.COMPACTION_INPUT_PATH_TIME);
       // Set the upstream time to partition + 1 day. E.g. for 2015/10/13 the upstream time is midnight of 2015/10/14
@@ -160,7 +164,7 @@ public class MRCompactorJobPropCreator {
 
   private boolean latePathsFound(Dataset dataset) throws IOException, FileNotFoundException {
     for (Path lateInputPath : dataset.inputLatePaths()) {
-      if ((this.fs.exists(lateInputPath)) && (this.fs.listStatus(lateInputPath).length > 0)) {
+      if ((this.targetFs.exists(lateInputPath)) && (this.targetFs.listStatus(lateInputPath).length > 0)) {
         return true;
       }
     }
@@ -184,7 +188,7 @@ public class MRCompactorJobPropCreator {
     jobProps.setProp(MRCompactor.COMPACTION_OUTPUT_DEDUPLICATED, this.outputDeduplicated);
     jobProps.setProp(MRCompactor.COMPACTION_SHOULD_DEDUPLICATE, !this.inputDeduplicated && this.outputDeduplicated);
 
-    if (this.recompactFromOutputPaths || !MRCompactor.datasetAlreadyCompacted(this.fs, dataset, renameSourceDirEnabled)) {
+    if (this.recompactFromOutputPaths || !MRCompactor.datasetAlreadyCompacted(this.fs, this.targetFs, dataset, renameSourceDirEnabled)) {
       if (renameSourceDirEnabled) {
         Set<Path> newUnrenamedDirs = MRCompactor.getDeepestLevelUnrenamedDirsWithFileExistence(this.fs, dataset.inputPaths());
         if (getAllFilePathsRecursively(newUnrenamedDirs).isEmpty()) {
@@ -271,7 +275,7 @@ public class MRCompactorJobPropCreator {
         if (isOutputLateDataExists (dataset)) {
           LOG.info ("{} don't have new data, but previous late data still remains, check if it requires to move", dataset.getDatasetName());
           dataset.setJobProps(jobProps);
-          dataset.checkIfNeedToRecompact(new DatasetHelper(dataset, this.fs, Lists.newArrayList("avro")));
+          dataset.checkIfNeedToRecompact(new DatasetHelper(dataset, this.fs, this.targetFs, Lists.newArrayList("avro")));
           if (dataset.needToRecompact()) {
             MRCompactor.modifyDatasetStateToRecompact (dataset);
           } else {
@@ -292,10 +296,10 @@ public class MRCompactorJobPropCreator {
   }
 
   private boolean isOutputLateDataExists (Dataset dataset) throws IOException {
-    if (!this.fs.exists(dataset.outputLatePath())) {
+    if (!this.targetFs.exists(dataset.outputLatePath())) {
       return false;
     }
-    return this.fs.listStatus(dataset.outputLatePath()).length > 0;
+    return this.targetFs.listStatus(dataset.outputLatePath()).length > 0;
   }
 
   private Set<Path> getNewDataInFolder(Set<Path> inputFolders, Path outputFolder) throws IOException {
@@ -314,11 +318,11 @@ public class MRCompactorJobPropCreator {
   private Set<Path> getNewDataInFolder(Path inputFolder, Path outputFolder) throws IOException {
     Set<Path> newFiles = Sets.newHashSet();
 
-    if (!this.fs.exists(inputFolder) || !this.fs.exists(outputFolder)) {
+    if (!this.fs.exists(inputFolder) || !this.targetFs.exists(outputFolder)) {
       return newFiles;
     }
 
-    DateTime lastCompactionTime = new DateTime(MRCompactor.readCompactionTimestamp(this.fs, outputFolder));
+    DateTime lastCompactionTime = new DateTime(MRCompactor.readCompactionTimestamp(this.targetFs, outputFolder));
     for (FileStatus fstat : FileListUtils.listFilesRecursively(this.fs, inputFolder)) {
       DateTime fileModificationTime = new DateTime(fstat.getModificationTime());
       if (fileModificationTime.isAfter(lastCompactionTime)) {

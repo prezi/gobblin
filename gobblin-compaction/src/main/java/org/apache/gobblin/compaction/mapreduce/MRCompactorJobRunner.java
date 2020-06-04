@@ -17,7 +17,6 @@
 
 package org.apache.gobblin.compaction.mapreduce;
 
-import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collection;
@@ -55,6 +54,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -155,6 +155,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
   protected final Dataset dataset;
   protected final FileSystem fs;
   protected final FileSystem tmpFs;
+  protected final FileSystem targetFs;
   protected final FsPermission perm;
   protected final boolean shouldDeduplicate;
   protected final boolean outputDeduplicated;
@@ -197,6 +198,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
   protected MRCompactorJobRunner(Dataset dataset, FileSystem fs) {
     this.dataset = dataset;
     this.fs = fs;
+    this.targetFs = fs;
     this.perm = HadoopUtils.deserializeFsPermission(this.dataset.jobProps(), COMPACTION_JOB_OUTPUT_DIR_PERMISSION,
         FsPermission.getDefault());
     this.recompactFromDestPaths = this.dataset.jobProps().getPropAsBoolean(
@@ -255,7 +257,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
     }
 
     this.applicablePathCache = CacheBuilder.newBuilder().maximumSize(2000).build();
-    this.datasetHelper = new DatasetHelper(this.dataset, this.fs, this.getApplicableFileExtensions());
+    this.datasetHelper = new DatasetHelper(this.dataset, this.fs, this.targetFs, this.getApplicableFileExtensions());
 
     this.outputExtension = this.dataset.jobProps().getProp(MRCompactor.COMPACTION_FILE_EXTENSION, ".avro");
 
@@ -302,8 +304,8 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
         Path lateDataOutputPath = this.outputDeduplicated ? this.dataset.outputLatePath() : this.dataset.outputPath();
         LOG.info(String.format("Copying %d late data files to %s", newLateFilePaths.size(), lateDataOutputPath));
         if (this.outputDeduplicated) {
-          if (!this.fs.exists(lateDataOutputPath)) {
-            if (!this.fs.mkdirs(lateDataOutputPath)) {
+          if (!this.targetFs.exists(lateDataOutputPath)) {
+            if (!this.targetFs.mkdirs(lateDataOutputPath)) {
               throw new RuntimeException(
                   String.format("Failed to create late data output directory: %s.", lateDataOutputPath.toString()));
             }
@@ -315,7 +317,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
         }
         this.status = Status.COMMITTED;
       } else {
-        if (this.fs.exists(this.dataset.outputPath()) && !canOverwriteOutputDir()) {
+        if (this.targetFs.exists(this.dataset.outputPath()) && !canOverwriteOutputDir()) {
           LOG.warn(String.format("Output paths %s exists. Will not compact %s.", this.dataset.outputPath(),
               this.dataset.inputPaths()));
           this.status = Status.COMMITTED;
@@ -334,11 +336,11 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
             // append new files without deleting output directory
             addGoodFilesToOutputPath(goodPaths);
             // clean up late data from outputLateDirectory, which has been set to inputPath
-            deleteFilesByPaths(this.dataset.inputPaths());
+            deleteFilesByPaths(this.fs, this.dataset.inputPaths());
           } else {
             moveTmpPathToOutputPath();
             if (this.recompactFromDestPaths) {
-              deleteFilesByPaths(this.dataset.additionalInputPaths());
+              deleteFilesByPaths(this.fs, this.dataset.additionalInputPaths());
             }
           }
           submitSlaEvent(job);
@@ -430,8 +432,8 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
       return;
     }
     Path jarFileDir = new Path(this.dataset.jobProps().getProp(MRCompactor.COMPACTION_JARS));
-    for (FileStatus status : this.fs.listStatus(jarFileDir)) {
-      DistributedCache.addFileToClassPath(status.getPath(), conf, this.fs);
+    for (FileStatus status : this.tmpFs.listStatus(jarFileDir)) {
+      DistributedCache.addFileToClassPath(status.getPath(), conf, this.tmpFs);
     }
   }
 
@@ -580,7 +582,7 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
 
   private void markOutputDirAsCompleted(DateTime jobStartTime) throws IOException {
     Path completionFilePath = new Path(this.dataset.outputPath(), MRCompactor.COMPACTION_COMPLETE_FILE_NAME);
-    try (FSDataOutputStream completionFileStream = this.fs.create(completionFilePath)) {
+    try (FSDataOutputStream completionFileStream = this.targetFs.create(completionFilePath)) {
       completionFileStream.writeLong(jobStartTime.getMillis());
     }
   }
@@ -624,9 +626,9 @@ public abstract class MRCompactorJobRunner implements Runnable, Comparable<MRCom
   }
 
 
-  private void deleteFilesByPaths(Set<Path> paths) throws IOException {
+  private void deleteFilesByPaths(FileSystem fs, Set<Path> paths) throws IOException {
     for (Path path : paths) {
-      HadoopUtils.deletePathAndEmptyAncestors(this.fs, path, true);
+      HadoopUtils.deletePathAndEmptyAncestors(fs, path, true);
     }
   }
 

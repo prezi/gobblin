@@ -140,6 +140,7 @@ public class MRCompactor implements Compactor {
   public static final String COMPACTION_TIMEZONE = COMPACTION_PREFIX + "timezone";
   public static final String DEFAULT_COMPACTION_TIMEZONE = ConfigurationKeys.PST_TIMEZONE_NAME;
   public static final String COMPACTION_FILE_SYSTEM_URI = COMPACTION_PREFIX + "file.system.uri";
+  public static final String COMPACTION_TARGET_FILE_SYSTEM_URI = COMPACTION_PREFIX + "target.file.system.uri";
   public static final String COMPACTION_MR_JOB_TIMEOUT_MINUTES = COMPACTION_PREFIX + "mr.job.timeout.minutes";
   public static final long DEFAULT_COMPACTION_MR_JOB_TIMEOUT_MINUTES = Long.MAX_VALUE;
 
@@ -271,6 +272,7 @@ public class MRCompactor implements Compactor {
   private final Configuration conf;
   private final String tmpOutputDir;
   private final FileSystem fs;
+  private final FileSystem targetFs;
   private final JobRunnerExecutor jobExecutor;
   private final Set<Dataset> datasets;
   private final Map<Dataset, MRCompactorJobRunner> jobRunnables;
@@ -296,6 +298,7 @@ public class MRCompactor implements Compactor {
     this.conf = HadoopUtils.getConfFromState(this.state);
     this.tmpOutputDir = getTmpOutputDir();
     this.fs = getFileSystem();
+    this.targetFs = getFileSystem();
     this.datasets = getDatasetsFinder().findDistinctDatasets();
     this.jobExecutor = createJobExecutor();
     this.jobRunnables = Maps.newConcurrentMap();
@@ -325,6 +328,14 @@ public class MRCompactor implements Compactor {
   }
 
   private FileSystem getFileSystem() throws IOException {
+    if (this.state.contains(COMPACTION_FILE_SYSTEM_URI)) {
+      URI uri = URI.create(this.state.getProp(COMPACTION_FILE_SYSTEM_URI));
+      return FileSystem.get(uri, this.conf);
+    }
+    return FileSystem.get(this.conf);
+  }
+
+  private FileSystem getTargetFileSystem() throws IOException {
     if (this.state.contains(COMPACTION_FILE_SYSTEM_URI)) {
       URI uri = URI.create(this.state.getProp(COMPACTION_FILE_SYSTEM_URI));
       return FileSystem.get(uri, this.conf);
@@ -545,7 +556,7 @@ public class MRCompactor implements Compactor {
 
     LOG.info ("Should verify completeness with renaming source dir : " + renamingRequired);
 
-    return !datasetAlreadyCompacted(this.fs, dataset, renamingRequired)
+    return !datasetAlreadyCompacted(this.fs, this.targetFs, dataset, renamingRequired)
         && DatasetFilterUtils.survived(dataset.getName(), blacklist, whitelist);
   }
 
@@ -604,11 +615,11 @@ public class MRCompactor implements Compactor {
    *    {@link Dataset#inputPaths()} contains at least one directory which has been renamed to something with
    *    {@link MRCompactor#COMPACTION_RENAME_SOURCE_DIR_SUFFIX}.
    */
-  public static boolean datasetAlreadyCompacted(FileSystem fs, Dataset dataset, boolean renameSourceEnable) {
+  public static boolean datasetAlreadyCompacted(FileSystem fs, FileSystem targetFs, Dataset dataset, boolean renameSourceEnable) {
     if (renameSourceEnable) {
       return checkAlreadyCompactedBasedOnSourceDirName (fs, dataset);
     } else {
-      return checkAlreadyCompactedBasedOnCompletionFile(fs, dataset);
+      return checkAlreadyCompactedBasedOnCompletionFile(targetFs, dataset);
     }
   }
 

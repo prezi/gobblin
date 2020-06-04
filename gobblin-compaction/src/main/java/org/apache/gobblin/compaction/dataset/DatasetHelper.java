@@ -55,6 +55,7 @@ import org.apache.gobblin.util.reflection.GobblinConstructorUtils;
 
 public class DatasetHelper {
   private final FileSystem fs;
+  private final FileSystem targetFs;
   private final Dataset dataset;
   private final RecordCountProvider inputRecordCountProvider;
   private final RecordCountProvider outputRecordCountProvider;
@@ -65,9 +66,10 @@ public class DatasetHelper {
 
   private static final Logger logger = LoggerFactory.getLogger(DatasetHelper.class);
 
-  public DatasetHelper(Dataset dataset, FileSystem fs, Collection<String> extensions) {
+  public DatasetHelper(Dataset dataset, FileSystem fs, FileSystem targetFs, Collection<String> extensions) {
     this.extensions = extensions;
     this.fs = fs;
+    this.targetFs = targetFs;
     this.dataset = dataset;
     this.condition = createRecompactionCondition();
 
@@ -126,7 +128,7 @@ public class DatasetHelper {
     return paths;
   }
 
-  public List<Path> getApplicableFilePaths (Path dataDir) throws IOException {
+  public List<Path> getApplicableFilePaths (FileSystem fs, Path dataDir) throws IOException {
     return getApplicableFilePaths(fs, dataDir, Lists.newArrayList("avro"));
   }
 
@@ -135,7 +137,7 @@ public class DatasetHelper {
         .forID(this.dataset.jobProps().getProp(MRCompactor.COMPACTION_TIMEZONE, MRCompactor.DEFAULT_COMPACTION_TIMEZONE));
     try {
       long maxTimestamp = Long.MIN_VALUE;
-      for (FileStatus status : FileListUtils.listFilesRecursively(this.fs, this.dataset.outputLatePath())) {
+      for (FileStatus status : FileListUtils.listFilesRecursively(this.targetFs, this.dataset.outputLatePath())) {
         maxTimestamp = Math.max(maxTimestamp, status.getModificationTime());
       }
       return maxTimestamp == Long.MIN_VALUE ? Optional.<DateTime>absent():Optional.of(new DateTime(maxTimestamp, timeZone));
@@ -156,9 +158,9 @@ public class DatasetHelper {
     long lateOutputRecordCount = 0l;
     try {
       Path outputLatePath = dataset.outputLatePath();
-      if (this.fs.exists(outputLatePath)) {
+      if (this.targetFs.exists(outputLatePath)) {
         lateOutputRecordCount = this.lateOutputRecordCountProvider
-            .getRecordCount(this.getApplicableFilePaths(dataset.outputLatePath()));
+            .getRecordCount(this.getApplicableFilePaths(this.targetFs, dataset.outputLatePath()));
       }
     } catch (Exception e) {
       logger.error("Failed to get late record count:" + e, e);
@@ -170,7 +172,7 @@ public class DatasetHelper {
     long outputRecordCount = 01;
     try {
       outputRecordCount = this.outputRecordCountProvider.
-          getRecordCount(this.getApplicableFilePaths(dataset.outputPath()));
+          getRecordCount(this.getApplicableFilePaths(this.targetFs, dataset.outputPath()));
       return outputRecordCount;
     } catch (Exception e) {
       logger.error("Failed to submit late event count:" + e, e);
@@ -186,8 +188,8 @@ public class DatasetHelper {
       long lateOutputFileCount = 0l;
       try {
         Path outputLatePath = dataset.outputLatePath();
-        if (this.fs.exists(outputLatePath)) {
-          lateOutputFileCount = getApplicableFilePaths(dataset.outputLatePath()).size();
+        if (this.targetFs.exists(outputLatePath)) {
+          lateOutputFileCount = getApplicableFilePaths(this.targetFs, dataset.outputLatePath()).size();
           logger.info("LateOutput File Count is : " + lateOutputFileCount + " at " + outputLatePath.toString());
         }
       } catch (Exception e) {

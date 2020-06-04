@@ -138,6 +138,18 @@ public abstract class DatasetsFinder implements org.apache.gobblin.dataset.Datas
     }
   }
 
+  private static FileSystem getTargetFileSystem(State state) {
+    try {
+      if (state.contains(MRCompactor.COMPACTION_TARGET_FILE_SYSTEM_URI)) {
+        URI uri = URI.create(state.getProp(MRCompactor.COMPACTION_TARGET_FILE_SYSTEM_URI));
+        return FileSystem.get(uri, HadoopUtils.getConfFromState(state));
+      }
+      return FileSystem.get(HadoopUtils.getConfFromState(state));
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to get filesystem for datasetsFinder.", e);
+    }
+  }
+
   private List<Pattern> getHighPriorityPatterns() {
     List<String> list = this.state.getPropAsList(MRCompactor.COMPACTION_HIGH_PRIORITY_TOPICS, StringUtils.EMPTY);
     return DatasetFilterUtils.getPatternsFromStrings(list);
