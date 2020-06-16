@@ -24,19 +24,22 @@ import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import javax.net.ssl.HttpsURLConnection;
-import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
+
+import com.google.common.collect.Lists;
+
+import javax.net.ssl.HttpsURLConnection;
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.gobblin.annotation.Alpha;
 import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.WorkUnitState;
 import org.apache.gobblin.password.PasswordManager;
-
-import com.google.common.collect.Lists;
 
 
 @Alpha
@@ -68,7 +71,8 @@ public class ZuoraUtil {
       String password =
           PasswordManager.getInstance(workUnitState).readPassword(workUnitState.getProp(ConfigurationKeys.SOURCE_CONN_PASSWORD));
       String userpass = userName + ":" + password;
-      String basicAuth = "Basic " + new String(new Base64().encode(userpass.getBytes("UTF-8")), "UTF-8").replace("\n", "");
+      String basicAuth = "Basic " + new String(new Base64().encode(userpass.getBytes(StandardCharsets.UTF_8)),
+          StandardCharsets.UTF_8).replace("\n", "");
       connection.setRequestProperty("Authorization", basicAuth);
     }
 
@@ -81,7 +85,7 @@ public class ZuoraUtil {
     StringBuilder sb = new StringBuilder();
     String line;
     try {
-      br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+      br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
       while ((line = br.readLine()) != null) {
         sb.append(line);
       }

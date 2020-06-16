@@ -39,7 +39,7 @@ public class ZuoraConfigurationKeys {
    * Check the documentation at
    * https://knowledgecenter.zuora.com/DC_Developers/T_Aggregate_Query_API/BA_Stateless_and_Stateful_Modes
    */
-  public static final String ZUORA_DELTED_COLUMN = "zuora.deleted.column";
+  public static final String ZUORA_DELETED_COLUMN = "zuora.deleted.column";
   public static final String ZUORA_TIMESTAMP_COLUMNS = "zuora.timestamp.columns";
   public static final String ZUORA_ROW_LIMIT = "zuora.row.limit";
 

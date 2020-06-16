@@ -21,16 +21,25 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
-import javax.net.ssl.HttpsURLConnection;
-import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+
+import com.github.rholder.retry.Retryer;
+import com.github.rholder.retry.RetryerBuilder;
+import com.github.rholder.retry.StopStrategies;
+import com.github.rholder.retry.WaitStrategies;
+import com.google.gson.JsonElement;
+
+import javax.net.ssl.HttpsURLConnection;
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.gobblin.annotation.Alpha;
 import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.WorkUnitState;
@@ -39,12 +48,6 @@ import org.apache.gobblin.source.extractor.resultset.RecordSet;
 import org.apache.gobblin.source.extractor.resultset.RecordSetList;
 import org.apache.gobblin.source.extractor.utils.InputStreamCSVReader;
 import org.apache.gobblin.source.extractor.utils.Utils;
-
-import com.github.rholder.retry.Retryer;
-import com.github.rholder.retry.RetryerBuilder;
-import com.github.rholder.retry.StopStrategies;
-import com.github.rholder.retry.WaitStrategies;
-import com.google.gson.JsonElement;
 
 
 @Alpha
@@ -152,7 +155,7 @@ public class ZuoraClientFilesStreamer {
     if (StringUtils.isNotBlank(outputFormat) && outputFormat.equalsIgnoreCase("gzip")) {
       stream = new GZIPInputStream(stream);
     }
-    return new ImmutablePair<>(connection, new BufferedReader(new InputStreamReader(stream, "UTF-8")));
+    return new ImmutablePair<>(connection, new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8)));
   }
 
   private void closeCurrentSession()

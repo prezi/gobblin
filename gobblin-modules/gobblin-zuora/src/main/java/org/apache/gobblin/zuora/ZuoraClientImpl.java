@@ -21,16 +21,28 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
-import java.util.UUID;
+
+import org.apache.commons.lang.StringUtils;
+
+import com.github.rholder.retry.Retryer;
+import com.github.rholder.retry.RetryerBuilder;
+import com.github.rholder.retry.StopStrategies;
+import com.github.rholder.retry.WaitStrategies;
+import com.google.common.collect.Lists;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+
 import javax.net.ssl.HttpsURLConnection;
 import lombok.extern.slf4j.Slf4j;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.gobblin.annotation.Alpha;
 import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.WorkUnitState;
@@ -41,15 +53,6 @@ import org.apache.gobblin.source.extractor.extract.restapi.RestApiCommand;
 import org.apache.gobblin.source.extractor.extract.restapi.RestApiCommandOutput;
 import org.apache.gobblin.source.extractor.watermark.Predicate;
 import org.apache.gobblin.source.jdbc.SqlQueryUtils;
-
-import com.github.rholder.retry.Retryer;
-import com.github.rholder.retry.RetryerBuilder;
-import com.github.rholder.retry.StopStrategies;
-import com.github.rholder.retry.WaitStrategies;
-import com.google.common.collect.Lists;
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 
 
 @Alpha
@@ -101,7 +104,7 @@ class ZuoraClientImpl implements ZuoraClient {
 
     List<ZuoraQuery> queries = Lists.newArrayList();
     queries.add(new ZuoraQuery(_workUnitState.getProp(ConfigurationKeys.JOB_NAME_KEY), query,
-        _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_DELTED_COLUMN, "")));
+        _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_DELETED_COLUMN, "")));
     ZuoraParams filterPayload = new ZuoraParams(_workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_PARTNER, "sample"),
         _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_PROJECT, UUID.randomUUID().toString()), //Basically this makes the query stateless in case of missing zuora project
         queries,
@@ -217,10 +220,10 @@ class ZuoraClientImpl implements ZuoraClient {
       connection.setRequestMethod("POST");
 
       OutputStream os = connection.getOutputStream();
-      os.write(payLoad.getBytes("UTF-8"));
+      os.write(payLoad.getBytes(StandardCharsets.UTF_8));
       os.flush();
 
-      br = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
+      br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
       StringBuilder result = new StringBuilder();
       String line;
       while ((line = br.readLine()) != null) {

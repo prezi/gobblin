@@ -19,9 +19,9 @@ package org.apache.gobblin.zuora;
 
 import java.io.Serializable;
 
-import org.apache.gobblin.annotation.Alpha;
-
 import com.google.common.base.Strings;
+
+import org.apache.gobblin.annotation.Alpha;
 
 
 @Alpha
@@ -39,7 +39,9 @@ public class ZuoraQuery implements Serializable {
     this.name = name;
     this.query = query;
     if (!Strings.isNullOrEmpty(deleteColumn)) {
-      deleted = new ZuoraDeletedColumn(deleteColumn);
+      // Force export needs to be set otherwise it won't extract deleted records from stateful queries
+      // https://knowledgecenter.zuora.com/Central_Platform/API/AB_Aggregate_Query_API/Bulk_data__extraction_from_Zuora_using_AQuA#Extract_deleted_data_in_each_query
+      deleted = new ZuoraDeletedColumn(deleteColumn, true);
     }
   }
 

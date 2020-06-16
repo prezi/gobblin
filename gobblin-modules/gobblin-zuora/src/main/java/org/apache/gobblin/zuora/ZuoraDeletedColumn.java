@@ -26,9 +26,11 @@ public class ZuoraDeletedColumn implements Serializable {
   private static final long serialVersionUID = 1L;
 
   String column;
+  boolean forceExport;
 
-  ZuoraDeletedColumn(String columnName) {
+  ZuoraDeletedColumn(String columnName, boolean isForceExport) {
     column = columnName;
+    forceExport = isForceExport;
   }
 
   public String getColumn() {
@@ -37,5 +39,13 @@ public class ZuoraDeletedColumn implements Serializable {
 
   public void setColumn(String column) {
     this.column = column;
+  }
+
+  public boolean isForceExport() {
+    return forceExport;
+  }
+
+  public void setForceExport(boolean forceExport) {
+    this.forceExport = forceExport;
   }
 }
