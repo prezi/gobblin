@@ -105,8 +105,8 @@ class ZuoraClientImpl implements ZuoraClient {
     List<ZuoraQuery> queries = Lists.newArrayList();
     queries.add(new ZuoraQuery(_workUnitState.getProp(ConfigurationKeys.JOB_NAME_KEY), query,
         _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_DELETED_COLUMN, "")));
-    ZuoraParams filterPayload = new ZuoraParams(_workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_PARTNER, "sample"),
-        _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_PROJECT, UUID.randomUUID().toString()), //Basically this makes the query stateless in case of missing zuora project
+    ZuoraParams filterPayload = new ZuoraParams(_workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_PARTNER),
+        _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_PROJECT),
         queries,
         _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_API_NAME, "sample"),
         _workUnitState.getProp(ZuoraConfigurationKeys.ZUORA_OUTPUT_FORMAT, "csv"),
