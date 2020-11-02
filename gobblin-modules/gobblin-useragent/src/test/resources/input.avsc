@@ -1,0 +1,8 @@
+{
+  "type" : "record",
+  "name" : "topLevelRecord",
+  "fields" : [ {
+    "name" : "user_agent",
+    "type" : [ "string", "null" ]
+  } ]
+}
