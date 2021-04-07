@@ -150,12 +150,33 @@ public class AvroUseragentEnricherConverter extends Converter<Schema, Schema, Ge
         return outputSchema;
     }
 
+    private String removeLineBreaksAndTabs(String useragent) {
+        return useragent
+                .replace("\r\n", " ")
+                .replace("\r", " ")
+                .replace("\n", " ")
+                .replace("\t", " ");
+    }
+
+    private Optional<String> getVersionPart(String version, Integer partIndex) {
+        try {
+            String[] parts = version.split("\\.");
+            if (parts.length > partIndex) {
+                return Optional.of(parts[partIndex]);
+            } else {
+                return Optional.empty();
+            }
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
     private Schema enrichSchemaWithUseragentData(Schema inputSchema, List<Field> inputFields) {
         List<Field> fields = new ArrayList<>();
-        String ipFieldName = this.uaField.substring(this.uaField.lastIndexOf('.')+1, this.uaField.length());
+        String uaFieldName = this.uaField.substring(this.uaField.lastIndexOf('.')+1, this.uaField.length());
 
         for (Field field : inputFields) {
-            if (!(removeUaField && field.name().equals(ipFieldName))) {
+            if (!(removeUaField && field.name().equals(uaFieldName))) {
                 fields.add(new Field(field.name(), field.schema(), field.doc(), field.defaultValue(), field.order()));
             }
         }
@@ -196,7 +217,7 @@ public class AvroUseragentEnricherConverter extends Converter<Schema, Schema, Ge
         if (useragent != null) {
             try {
                 uaString = java.net.URLDecoder.decode(useragent, StandardCharsets.UTF_8.name()).replace('+', ' ');
-                Detection detection = deviceDetector.detect(uaString);
+                Detection detection = deviceDetector.detect(removeLineBreaksAndTabs(uaString));
                 uaType = getUaType(detection);
 
                 String brand = detection.getDevice()
@@ -215,40 +236,40 @@ public class AvroUseragentEnricherConverter extends Converter<Schema, Schema, Ge
                     deviceFamily = "Other";
                 }
 
-                osFamily = detection.getOperatingSystem()
+                osFamily = detection
+                        .getOperatingSystem()
                         .flatMap(OperatingSystem::getFamily)
-                        .orElse(null);
-                if ("GNU/Linux".equals(osFamily)) {
+                        .orElse("");
+                if (osFamily.equals("GNU/Linux")) {
                     osFamily = "Linux";
                 }
 
-                osMajorVersion = detection.getOperatingSystem()
+                osMajorVersion = detection
+                        .getOperatingSystem()
                         .flatMap(OperatingSystem::getVersion)
-                        .flatMap(x -> java.util.Optional.of(x.split("\\.")))
-                        .filter(x -> x.length > 0)
-                        .flatMap(x -> java.util.Optional.ofNullable(x[0]))
-                        .filter(x -> x.length() > 0)
-                        .orElse(null);
-                osVersionString = detection.getOperatingSystem()
+                        .flatMap(x -> getVersionPart(x, 0))
+                        .orElse("");
+                osVersionString = detection
+                        .getOperatingSystem()
                         .flatMap(OperatingSystem::getVersion)
-                        .orElse(null);
-                browserFamily = detection.getClient()
+                        .orElse("");
+                browserFamily = detection
+                        .getClient()
                         .flatMap(Client::getName)
-                        .orElse(null);
-                browserMajorVersion = detection.getClient()
+                        .orElse("");
+                browserMajorVersion = detection
+                        .getClient()
                         .flatMap(Client::getVersion)
-                        .flatMap(x -> java.util.Optional.of(x.split("\\.")))
-                        .filter(x -> x.length > 0)
-                        .flatMap(x -> java.util.Optional.ofNullable(x[0]))
-                        .filter(x -> x.length() > 0)
-                        .orElse(null);
-                browserVersionString = detection.getClient()
+                        .flatMap(x -> getVersionPart(x, 0))
+                        .orElse("");
+                browserVersionString = detection
+                        .getClient()
                         .flatMap(Client::getVersion)
-                        .orElse(null);
-                browserBit = detection.getOperatingSystem()
+                        .orElse("");
+                browserBit = detection
+                        .getOperatingSystem()
                         .flatMap(OperatingSystem::getPlatform)
-                        .filter(x -> x.equals("x86"))
-                        .flatMap(x -> java.util.Optional.of("32"))
+                        .map(x -> x.equals("x86") ? "32" : "64")
                         .orElse("64");
                 isBot = detection.isBot();
             } catch (UnsupportedEncodingException e) {
@@ -277,12 +298,7 @@ public class AvroUseragentEnricherConverter extends Converter<Schema, Schema, Ge
         }
 
         java.util.Optional<Device> device = detection.getDevice();
-
-        if (device.flatMap(Device::getBrand).filter(s -> s.equals("Motorola  ")).isPresent()) {
-            return "BOT";
-        }
-
-        return uaTypeMapping.getOrDefault(device.map(Device::getType).orElse(null), "UNKNOWN");
+        return uaTypeMapping.getOrDefault(device.map(Device::getType).orElse(""), "UNKNOWN");
     }
 
     private GenericRecord copyRecords (GenericRecord record, Schema outputSchema, Iterator<String> levels)
